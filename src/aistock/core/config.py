@@ -1,0 +1,31 @@
+from __future__ import annotations
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    ai_provider: str = Field(default="hackclub", description="hackclub or mock")
+    news_provider: str = Field(default="hackclub", description="hackclub or mock")
+    market_provider: str = Field(default="yfinance", description="yfinance")
+
+    ai_hackclub_base_url: str = "https://ai.hackclub.com"
+    ai_hackclub_api_key: str | None = None
+    search_hackclub_base_url: str = "https://search.hackclub.com"
+    search_hackclub_api_key: str | None = None
+
+    universe: str = "AAPL,MSFT,GOOGL,AMZN,NVDA"
+    starting_cash: float = 100_000.0
+    max_allocation_per_trade: float = 0.03
+    stop_loss_pct: float = 0.08
+
+    ai_weight: float = 0.60
+    conventional_weight: float = 0.40
+
+    def universe_symbols(self) -> list[str]:
+        return [s.strip().upper() for s in self.universe.split(",") if s.strip()]
+
+
+settings = Settings()
