@@ -4,10 +4,16 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
@@ -18,10 +24,47 @@ jobs:
           port: ${{ secrets.SERVER_PORT || 22 }}
           script: |
             set -e
-            cd /opt/AIStock
+
+            APP_DIR="/opt/AIStock"
+            REPO_URL="https://github.com/NikhilRao21/AIStock.git"
+            CONDA_BIN="/home/opc/miniconda3/bin/conda"
+
+            if [ ! -x "$CONDA_BIN" ]; then
+              echo "Conda not found at $CONDA_BIN"
+              exit 1
+            fi
+
+            if [ ! -d "$APP_DIR/.git" ]; then
+              mkdir -p "$APP_DIR"
+              git clone "$REPO_URL" "$APP_DIR"
+            fi
+
+            cd "$APP_DIR"
+
+            PREV_COMMIT=""
+            if git rev-parse --verify HEAD >/dev/null 2>&1; then
+              PREV_COMMIT="$(git rev-parse HEAD)"
+            fi
+
             git fetch origin main
-            git pull --ff-only origin main
-            source .venv/bin/activate
-            pip install -r requirements.txt
-            sudo systemctl restart aistock-paper.service
+            TARGET_COMMIT="$(git rev-parse origin/main)"
+            git checkout -f "$TARGET_COMMIT"
+
+            if ! "$CONDA_BIN" env list | awk '{print $1}' | grep -qx aistock; then
+              "$CONDA_BIN" create -y -n aistock python=3.12 pip
+            fi
+
+            "$CONDA_BIN" run -n aistock pip install --upgrade pip
+            "$CONDA_BIN" run -n aistock pip install -r requirements.txt
+
+            if ! sudo systemctl restart aistock-paper.service; then
+              if [ -n "$PREV_COMMIT" ]; then
+                git checkout -f "$PREV_COMMIT"
+                "$CONDA_BIN" run -n aistock pip install -r requirements.txt
+                sudo systemctl restart aistock-paper.service
+              fi
+              exit 1
+            fi
+
+            sudo systemctl is-active --quiet aistock-paper.service
             sudo systemctl status aistock-paper.service --no-pager
