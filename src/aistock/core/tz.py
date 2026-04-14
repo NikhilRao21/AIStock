@@ -28,6 +28,25 @@ def format_iso_in_tz(dt: Optional[datetime], tz_name: str = "America/New_York") 
     return localized.isoformat()
 
 
+def format_human_in_tz(
+    dt: Optional[datetime], tz_name: str = "America/New_York", fmt: str = "%b %d, %Y %I:%M %p %Z"
+) -> Optional[str]:
+    """Return a human-friendly formatted datetime string in the given timezone.
+
+    Default format: "Apr 14, 2026 09:00 AM EDT".
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    tz = _get_zone(tz_name)
+    try:
+        localized = dt.astimezone(tz)
+    except Exception:
+        return dt.isoformat()
+    return localized.strftime(fmt)
+
+
 def to_zone(dt: Optional[datetime], tz_name: str = "America/New_York") -> Optional[datetime]:
     if dt is None:
         return None

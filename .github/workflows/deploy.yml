@@ -97,6 +97,8 @@ jobs:
               "WorkingDirectory=$APP_DIR" \
               "Environment=PYTHONPATH=$APP_DIR/src" \
               "EnvironmentFile=$APP_DIR/.env" \
+              "Environment=BUY_ONLY_DURING_MARKET_HOURS=true" \
+              "Environment=DISPLAY_TIMEZONE=America/New_York" \
               "ExecStart=$CONDA_ENV_PREFIX/bin/python $APP_DIR/scripts/run_cycle.py" \
               | sudo tee /etc/systemd/system/aistock-trader.service >/dev/null
 

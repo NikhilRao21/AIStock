@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from aistock.core.types import AiSignal, Fill, PortfolioSnapshot, Position, TradeDecision
-from aistock.core.tz import format_iso_in_tz
+from aistock.core.tz import format_iso_in_tz, format_human_in_tz
 from aistock.core.config import settings
 
 _SIGNAL_PERFORMANCE_MIN_TRADES = 5
@@ -57,15 +57,38 @@ def write_cycle_report(
     history = read_recent_reports(data_dir, history_limit)
     signal_performance = _build_signal_performance(history, market_prices)
 
-    current_positions = [
-        {"symbol": p.symbol, "quantity": p.quantity, "avg_cost": round(p.avg_cost, 4)}
-        for p in portfolio.positions
-    ]
+    current_positions: list[dict[str, Any]] = []
+    for p in portfolio.positions:
+        cp = float(market_prices.get(p.symbol, 0.0) or 0.0)
+        unrealized = round((cp - p.avg_cost) * p.quantity, 2)
+        unrealized_pct = None
+        try:
+            unrealized_pct = None if not p.avg_cost else round((cp - p.avg_cost) / p.avg_cost * 100.0, 2)
+        except Exception:
+            unrealized_pct = None
+        current_positions.append(
+            {
+                "symbol": p.symbol,
+                "quantity": p.quantity,
+                "avg_cost": round(p.avg_cost, 4),
+                "current_price": round(cp, 4),
+                "unrealized": unrealized,
+                "unrealized_pct": unrealized_pct,
+            }
+        )
     previous_position_symbols = {p.symbol for p in previous_positions}
     current_position_symbols = {p["symbol"] for p in current_positions}
 
-    new_buys = [p for p in current_positions if p["symbol"] not in previous_position_symbols]
-    carried_positions = [p for p in current_positions if p["symbol"] in previous_position_symbols]
+    new_buys = [
+        {"symbol": p["symbol"], "quantity": p["quantity"], "avg_cost": p["avg_cost"]}
+        for p in current_positions
+        if p["symbol"] not in previous_position_symbols
+    ]
+    carried_positions = [
+        {"symbol": p["symbol"], "quantity": p["quantity"], "avg_cost": p["avg_cost"]}
+        for p in current_positions
+        if p["symbol"] in previous_position_symbols
+    ]
     closed_positions = [
         {"symbol": p.symbol, "quantity": p.quantity, "avg_cost": round(p.avg_cost, 4)}
         for p in previous_positions
@@ -114,9 +137,11 @@ def write_cycle_report(
         for item in ai_raw_output
     ]
 
+    now_utc = datetime.now(timezone.utc)
     report = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "timestamp_et": format_iso_in_tz(datetime.now(timezone.utc), settings.display_timezone),
+        "timestamp": now_utc.isoformat(),
+        "timestamp_et": format_iso_in_tz(now_utc, settings.display_timezone),
+        "timestamp_human": format_human_in_tz(now_utc, settings.display_timezone),
         "program_start": program_start,
         "net_profit": round(portfolio.equity - baseline_equity, 2),
         "net_profit_pct": None if baseline_equity == 0 else round((portfolio.equity - baseline_equity) / baseline_equity * 100.0, 2),
@@ -150,6 +175,7 @@ def write_cycle_report(
             {
                 "timestamp": f.timestamp.isoformat(),
                 "timestamp_et": format_iso_in_tz(f.timestamp, settings.display_timezone),
+                "timestamp_human": format_human_in_tz(f.timestamp, settings.display_timezone),
                 "symbol": f.symbol,
                 "action": f.action,
                 "quantity": f.quantity,
@@ -199,6 +225,7 @@ def write_cycle_report(
                                 "fill_price": round(f.fill_price, 4),
                                 "fee": round(f.fee, 4),
                                 "equity": round(portfolio.equity, 2),
+                                "timestamp_human": format_human_in_tz(f.timestamp, settings.display_timezone),
                             }
                             plf.write(json.dumps(entry) + "\n")
                     except Exception:
@@ -392,7 +419,21 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
         f"<tr><td>{escape(str(p['symbol']))}</td><td>{p['quantity']}</td><td>${p['avg_cost']}</td></tr>"
         for p in position_change.get("carried_positions", [])
     )
-    scanned_rows = "".join(f"<li>{escape(str(symbol))}</li>" for symbol in latest.get("symbols_scanned", []))
+    # compact grid for scanned symbols
+    scanned_grid = "".join(f"<div class='badge'>{escape(str(symbol))}</div>" for symbol in latest.get("symbols_scanned", []))
+    positions_rows = "".join(
+        (
+            f"<tr>"
+            f"<td>{escape(str(p['symbol']))}</td>"
+            f"<td>{p['quantity']}</td>"
+            f"<td>${p['avg_cost']}</td>"
+            f"<td>${p.get('current_price','')}</td>"
+            f"<td class=\"{'pnl-positive' if (p.get('unrealized', 0) >= 0) else 'pnl-negative'}\">${p.get('unrealized','')}</td>"
+            f"<td class=\"{'pnl-positive' if ((p.get('unrealized_pct') or 0) >= 0) else 'pnl-negative'}\">{(str(p.get('unrealized_pct','')) + '%') if p.get('unrealized_pct') is not None else ''}</td>"
+            f"</tr>"
+        )
+        for p in latest_positions
+    )
     hidden_rows = "".join(
         f"<tr><td>{escape(str(candidate['symbol']))}</td><td>{candidate['confidence']}</td><td>{escape(str(candidate['reason']))}</td></tr>"
         for candidate in latest.get("hidden_gem_candidates", [])
@@ -426,12 +467,12 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
     )
 
     purchase_rows = "".join(
-        f"<tr><td>{escape(str(item.get('timestamp_et', item.get('timestamp', ''))))}</td><td>{escape(str(item.get('symbol', '')))}</td><td>{item.get('quantity', '')}</td><td>${item.get('fill_price', '')}</td><td>${item.get('fee', '')}</td><td>${item.get('equity', '')}</td></tr>"
+        f"<tr><td>{escape(str(item.get('timestamp_human', item.get('timestamp_et', item.get('timestamp', '')))))}</td><td>{escape(str(item.get('symbol', '')))}</td><td>{item.get('quantity', '')}</td><td>${item.get('fill_price', '')}</td><td>${item.get('fee', '')}</td><td>${item.get('equity', '')}</td></tr>"
         for item in latest.get('purchase_log', [])
     )
 
     recent_rows = "".join(
-        f"<tr><td>{escape(str(r.get('timestamp_et', r.get('timestamp', ''))))}</td><td>{r.get('equity', '')}</td><td>{r.get('equity_delta', '')}</td><td>{r.get('fill_count', '')}</td><td>{len(r.get('hidden_gem_candidates', []))}</td><td>{'fail' if not r.get('news_status', {}).get('ok', True) else 'ok'}</td></tr>"
+        f"<tr><td>{escape(str(r.get('timestamp_human', r.get('timestamp_et', r.get('timestamp', '')))))}</td><td>{r.get('equity', '')}</td><td>{r.get('equity_delta', '')}</td><td>{r.get('fill_count', '')}</td><td>{len(r.get('hidden_gem_candidates', []))}</td><td>{'fail' if not r.get('news_status', {}).get('ok', True) else 'ok'}</td></tr>"
         for r in reversed(history[-30:])
     )
 
@@ -501,13 +542,16 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
         ul {{ margin: 8px 0 0 18px; }}
         pre {{ margin:0; white-space: pre-wrap; max-height:280px; overflow:auto; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace; background: rgba(0,0,0,0.04); padding:8px; border-radius:8px; }}
         .badge {{ display:inline-block; padding:4px 8px; border-radius:999px; font-size:12px; background: rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.03); }}
+        .symbols-grid {{ display:grid; grid-template-columns: repeat(auto-fit, minmax(90px,1fr)); gap:8px; align-items:start; }}
+        .pnl-positive {{ color:var(--ok); font-weight:700; }}
+        .pnl-negative {{ color:var(--bad); font-weight:700; }}
         .small {{ font-size:12px; color:var(--muted); }}
   </style>
 </head>
 <body>
   <div class=\"wrap\">
     <h1>AIStock Cycle Dashboard</h1>
-    <p>Updated: {escape(str(latest.get('timestamp_et', latest.get('timestamp', ''))))}</p>
+    <p>Updated: {escape(str(latest.get('timestamp_human', latest.get('timestamp_et', latest.get('timestamp', '')))))}</p>
 
     <div class=\"grid\">
       <div class=\"card\"><div class=\"label\">Portfolio Equity</div><div class=\"value\">${latest.get('equity', '')}</div></div>
@@ -528,13 +572,13 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
     </div>
 
     <h2>Symbols Scanned This Cycle</h2>
-    <div class=\"card\"><ul>{scanned_rows or '<li>No symbols scanned</li>'}</ul></div>
+    <div class=\"card\"><div class=\"symbols-grid\">{scanned_grid or '<div class=\"small\">No symbols scanned</div>'}</div></div>
 
     <h2>Current Positions</h2>
     <div class=\"card\">
       <table>
-        <thead><tr><th>Symbol</th><th>Qty</th><th>Avg Cost</th></tr></thead>
-        <tbody>{''.join(f'<tr><td>{escape(str(p["symbol"]))}</td><td>{p["quantity"]}</td><td>${p["avg_cost"]}</td></tr>' for p in latest_positions) or '<tr><td colspan="3">No positions</td></tr>'}</tbody>
+        <thead><tr><th>Symbol</th><th>Qty</th><th>Avg Cost</th><th>Price</th><th>P/L</th><th>P/L %</th></tr></thead>
+        <tbody>{positions_rows or '<tr><td colspan="6">No positions</td></tr>'}</tbody>
       </table>
     </div>
 
