@@ -74,6 +74,11 @@ jobs:
                 CYCLE_INTERVAL_MINS="$ENV_INTERVAL"
               fi
             fi
+            if ! [[ "$CYCLE_INTERVAL_MINS" =~ ^[0-9]+$ ]] || [ "$CYCLE_INTERVAL_MINS" -lt 1 ] || [ "$CYCLE_INTERVAL_MINS" -gt 60 ]; then
+              echo "Invalid CYCLE_INTERVAL_MINS=$CYCLE_INTERVAL_MINS"
+              exit 1
+            fi
+            MINUTE_LIST="$(seq -s, -f '%02g' 0 "$CYCLE_INTERVAL_MINS" 59)"
 
             # Fresh start on every deploy: remove and recreate the entire data directory.
             sudo rm -rf "$APP_DIR/data"
@@ -101,7 +106,7 @@ jobs:
               'Description=AIStock Trader Schedule (Market Hours)' \
               '' \
               '[Timer]' \
-              "OnCalendar=Mon..Fri *-*-* 13,14,15,16,17,18,19:00/${CYCLE_INTERVAL_MINS}:00 UTC" \
+              "OnCalendar=Mon..Fri *-*-* 13,14,15,16,17,18,19:${MINUTE_LIST}:00 UTC" \
               'OnCalendar=Mon..Fri *-*-* 20:00:00 UTC' \
               'Persistent=true' \
               'Unit=aistock-trader.service' \
