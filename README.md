@@ -76,6 +76,12 @@ Set API keys when required:
 - `AI_HACKCLUB_API_KEY` for Hack Club AI
 - `SEARCH_HACKCLUB_API_KEY` for Hack Club Search
 
+For Hack Club API compatibility, keep these endpoint defaults unless the upstream API changes:
+
+- `AI_HACKCLUB_ENDPOINT=/proxy/v1/chat/completions`
+- `AI_HACKCLUB_MODEL=gpt-5-mini`
+- `SEARCH_HACKCLUB_ENDPOINT=/res/v1/news/search`
+
 ## Dashboard Output
 
 Each cycle now writes persistent artifacts to `DATA_DIR` (default `data`):

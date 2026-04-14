@@ -25,6 +25,7 @@ def write_cycle_report(
     previous_equity: float | None,
     previous_positions: list[Position],
     news_status: dict[str, Any] | None,
+    ai_status: dict[str, Any] | None,
     signal_policy: dict[str, Any] | None,
     debug_issues: list[str],
     history_limit: int,
@@ -112,6 +113,7 @@ def write_cycle_report(
         },
         "hidden_gem_candidates": hidden_gem_candidates,
         "news_status": news_status or {"ok": True, "fallback_used": False, "error": None},
+        "ai_status": ai_status or {"ok": True, "error": None, "provider": "unknown"},
         "signal_policy": signal_policy or {"ai_weight": None, "conventional_weight": None, "disabled": []},
         "signal_performance": signal_performance,
         "debug_issues": debug_issues,
@@ -322,6 +324,21 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
     news_status = latest.get("news_status", {})
     news_ok = bool(news_status.get("ok", True))
     news_error = news_status.get("error") or "None"
+    news_raw_output = news_status.get("raw_output", []) if isinstance(news_status, dict) else []
+
+    ai_status = latest.get("ai_status", {})
+    ai_ok = bool(ai_status.get("ok", True))
+    ai_error = ai_status.get("error") or "None"
+
+    news_provider_rows = "".join(
+        "<tr>"
+        f"<td>{escape(str(item.get('symbol', '')))}</td>"
+        f"<td>{escape(str(item.get('status', '')))}</td>"
+        f"<td>{escape(str(item.get('http_status', '')))}</td>"
+        f"<td>{escape(str(item.get('error', '') or ''))}</td>"
+        "</tr>"
+        for item in news_raw_output
+    )
 
     signal_policy = latest.get("signal_policy", {})
     signal_policy_rows = "".join(
@@ -443,6 +460,23 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
       <p><strong>Fallback used:</strong> {news_status.get('fallback_used', False)}</p>
       <p><strong>Error:</strong> {escape(str(news_error))}</p>
     </div>
+
+        <h2>Provider Diagnostics</h2>
+        <div class=\"grid\">
+            <div class=\"card\">
+                <h3>AI Provider</h3>
+                <p><strong>Provider:</strong> {escape(str(ai_status.get('provider', 'unknown')))}</p>
+                <p class=\"{'status-ok' if ai_ok else 'status-bad'}\">{'Healthy' if ai_ok else 'Failing'}</p>
+                <p><strong>Error:</strong> {escape(str(ai_error))}</p>
+            </div>
+            <div class=\"card\">
+                <h3>News Provider Raw Output</h3>
+                <table>
+                    <thead><tr><th>Symbol</th><th>Status</th><th>HTTP</th><th>Error</th></tr></thead>
+                    <tbody>{news_provider_rows or '<tr><td colspan="4">No raw news output captured</td></tr>'}</tbody>
+                </table>
+            </div>
+        </div>
 
     <h2>Recent Cycles</h2>
     <div class=\"card\">

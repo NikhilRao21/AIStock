@@ -49,7 +49,14 @@ class ReportingTests(unittest.TestCase):
                 market_prices={"AAPL": 55.0, "MSFT": 110.0},
                 previous_equity=850.0,
                 previous_positions=[Position(symbol="AAPL", quantity=2, avg_cost=50.0)],
-                news_status={"ok": False, "fallback_used": True, "error": "JSONDecodeError: bad payload", "provider": "hackclub"},
+                news_status={
+                    "ok": False,
+                    "fallback_used": True,
+                    "error": "JSONDecodeError: bad payload",
+                    "provider": "hackclub",
+                    "raw_output": [{"symbol": "MSFT", "status": "error", "http_status": 500, "error": "boom"}],
+                },
+                ai_status={"ok": False, "error": "HTTP 401", "provider": "hackclub"},
                 signal_policy={"ai_weight": 0.6, "conventional_weight": 0.4, "disabled": []},
                 debug_issues=["No fills were executed"],
                 history_limit=10,
@@ -63,6 +70,7 @@ class ReportingTests(unittest.TestCase):
             latest = json.loads((data_dir / "latest_cycle.json").read_text(encoding="utf-8"))
             self.assertEqual(latest["ai_output_count"], 1)
             self.assertEqual(latest["ai_raw_output_count"], 1)
+            self.assertEqual(latest["ai_status"]["ok"], False)
             self.assertIn("signal_performance", latest)
             self.assertIn("symbols_scanned", latest)
 
@@ -73,6 +81,7 @@ class ReportingTests(unittest.TestCase):
             self.assertIn("Symbols Scanned This Cycle", dashboard)
             self.assertIn("Hidden-Gem Candidates", dashboard)
             self.assertIn("News feed failing or degraded", dashboard)
+            self.assertIn("Provider Diagnostics", dashboard)
 
 
 if __name__ == "__main__":

@@ -12,9 +12,17 @@ class Settings(BaseSettings):
     market_provider: str = Field(default="yfinance", description="yfinance")
 
     ai_hackclub_base_url: str = "https://ai.hackclub.com"
+    ai_hackclub_endpoint: str = "/proxy/v1/chat/completions"
+    ai_hackclub_model: str = "gpt-5-mini"
     ai_hackclub_api_key: str | None = None
+    ai_hackclub_timeout_seconds: int = 20
+    ai_hackclub_max_retries: int = 2
+
     search_hackclub_base_url: str = "https://search.hackclub.com"
+    search_hackclub_endpoint: str = "/res/v1/news/search"
     search_hackclub_api_key: str | None = None
+    search_hackclub_timeout_seconds: int = 15
+    search_hackclub_max_retries: int = 2
 
     universe: str = "AAPL,MSFT,GOOGL,AMZN,NVDA"
     universe_mode: str = Field(default="fixed", description="fixed or auto")

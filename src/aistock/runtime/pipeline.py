@@ -105,21 +105,29 @@ def _mark_hidden_gems(decisions: list[TradeDecision], symbols: list[str]) -> Non
 def _collect_debug_issues(
     news_count: int,
     ai_signal_count: int,
+    news_debug: list[dict[str, Any]],
     ai_debug: list[dict[str, Any]],
     decisions: list[TradeDecision],
     fills: list,
     news_failure: str | None,
+    ai_failure: str | None,
 ) -> list[str]:
     issues: list[str] = []
 
     if news_failure:
         issues.append(f"News provider failure: {news_failure}")
+    if ai_failure:
+        issues.append(f"AI provider failure: {ai_failure}")
     if news_count == 0:
         issues.append("No news items fetched for this cycle")
     if ai_signal_count == 0:
         issues.append("No AI signals returned")
 
-    ai_errors = [item for item in ai_debug if str(item.get("status", "")) == "error"]
+    news_errors = [item for item in news_debug if str(item.get("status", "")) != "ok"]
+    if news_errors:
+        issues.append(f"News provider errors for {len(news_errors)} symbol(s)")
+
+    ai_errors = [item for item in ai_debug if str(item.get("status", "")) != "ok"]
     if ai_errors:
         issues.append(f"AI provider errors for {len(ai_errors)} symbol(s)")
 
@@ -147,9 +155,15 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
 
     symbols = resolve_symbols(settings=settings, market=market, data_dir=data_dir)
     news_failure: str | None = None
+    ai_failure: str | None = None
     news_fallback_used = False
+    news_raw_output: list[dict[str, Any]] = []
     try:
         news = news_provider.fetch_news(symbols)
+        if hasattr(news_provider, "last_debug"):
+            maybe_debug = getattr(news_provider, "last_debug")
+            if isinstance(maybe_debug, list):
+                news_raw_output = maybe_debug
     except Exception as exc:
         news_failure = f"{type(exc).__name__}: {exc}"
         news_fallback_used = True
@@ -159,9 +173,7 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
         ai_signals = ai_provider.score_news(news)
     except Exception as exc:
         ai_signals = []
-        news_fallback_used = True
-        if news_failure is None:
-            news_failure = f"AI provider failure: {type(exc).__name__}: {exc}"
+        ai_failure = f"{type(exc).__name__}: {exc}"
 
     ai_raw_output: list[dict[str, Any]] = []
     if hasattr(ai_provider, "last_debug"):
@@ -222,10 +234,12 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
     debug_issues = _collect_debug_issues(
         news_count=len(news),
         ai_signal_count=len(ai_signals),
+        news_debug=news_raw_output,
         ai_debug=ai_raw_output,
         decisions=decisions,
         fills=fills,
         news_failure=news_failure,
+        ai_failure=ai_failure,
     )
 
     recent = read_recent_reports(data_dir, limit=1)
@@ -249,6 +263,12 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
             "fallback_used": news_fallback_used,
             "error": news_failure,
             "provider": settings.news_provider,
+            "raw_output": news_raw_output,
+        },
+        ai_status={
+            "ok": ai_failure is None,
+            "error": ai_failure,
+            "provider": settings.ai_provider,
         },
         signal_policy=signal_policy,
         debug_issues=debug_issues,
