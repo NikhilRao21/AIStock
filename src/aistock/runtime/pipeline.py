@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import datetime
 import json
 from pathlib import Path
 from typing import Any
 
 from aistock.broker.paper_broker import PaperBroker
 from aistock.core.config import settings
-from aistock.core.types import AiSignal, TradeDecision
+from aistock.core.types import AiSignal, NewsItem, TradeDecision
 from aistock.integrations.ai.hackclub import HackclubAiProvider
 from aistock.integrations.ai.mock import MockAiProvider
 from aistock.integrations.market.yfinance_provider import YFinanceProvider
@@ -20,6 +21,70 @@ from aistock.signals.conventional import conventional_signal
 from aistock.signals.ensemble import combine_signals
 
 _HIDDEN_GEM_MIN_CONFIDENCE = 0.8
+
+
+def _news_cache_path(data_dir: Path) -> Path:
+    return data_dir / "news_cache.json"
+
+
+def _serialize_news(items: list[NewsItem]) -> list[dict[str, Any]]:
+    return [
+        {
+            "symbol": item.symbol,
+            "headline": item.headline,
+            "source": item.source,
+            "summary": item.summary,
+            "published_at": item.published_at.isoformat(),
+        }
+        for item in items
+    ]
+
+
+def _deserialize_news(payload: list[dict[str, Any]]) -> list[NewsItem]:
+    items: list[NewsItem] = []
+    for row in payload:
+        try:
+            items.append(
+                NewsItem(
+                    symbol=str(row.get("symbol", "")).upper(),
+                    headline=str(row.get("headline", "")),
+                    source=str(row.get("source", "unknown")),
+                    summary=str(row.get("summary")) if row.get("summary") is not None else None,
+                    published_at=datetime.fromisoformat(str(row.get("published_at"))),
+                )
+            )
+        except (TypeError, ValueError):
+            continue
+    return items
+
+
+def _read_cached_news(data_dir: Path) -> list[NewsItem]:
+    cache_path = _news_cache_path(data_dir)
+    if not cache_path.exists():
+        return []
+    try:
+        payload = json.loads(cache_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, ValueError, TypeError):
+        return []
+    if not isinstance(payload, list):
+        return []
+    return _deserialize_news(payload)
+
+
+def _write_cached_news(data_dir: Path, items: list[NewsItem]) -> None:
+    if not items:
+        return
+    cache_path = _news_cache_path(data_dir)
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_text(json.dumps(_serialize_news(items), indent=2), encoding="utf-8")
+
+
+def _count_statuses(rows: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        status = str(row.get("status", "unknown"))
+        counts[status] = counts.get(status, 0) + 1
+    return counts
 
 
 def _build_ai_provider():
@@ -111,6 +176,7 @@ def _collect_debug_issues(
     fills: list,
     news_failure: str | None,
     ai_failure: str | None,
+    execution_diagnostics: dict[str, Any],
 ) -> list[str]:
     issues: list[str] = []
 
@@ -119,13 +185,22 @@ def _collect_debug_issues(
     if ai_failure:
         issues.append(f"AI provider failure: {ai_failure}")
     if news_count == 0:
-        issues.append("No news items fetched for this cycle")
+        news_statuses = _count_statuses(news_debug)
+        if news_statuses.get("rate_limited", 0) > 0:
+            issues.append("No news items fetched for this cycle (rate limited)")
+        else:
+            issues.append("No news items fetched for this cycle")
     if ai_signal_count == 0:
-        issues.append("No AI signals returned")
+        if any(str(item.get("status", "")) == "empty_input" for item in ai_debug):
+            issues.append("No AI signals returned (AI input had no news items)")
+        else:
+            issues.append("No AI signals returned")
 
     news_errors = [item for item in news_debug if str(item.get("status", "")) != "ok"]
     if news_errors:
-        issues.append(f"News provider errors for {len(news_errors)} symbol(s)")
+        error_counts = _count_statuses(news_errors)
+        counts_str = ", ".join(f"{k}={v}" for k, v in sorted(error_counts.items()))
+        issues.append(f"News provider errors for {len(news_errors)} symbol(s): {counts_str}")
 
     ai_errors = [item for item in ai_debug if str(item.get("status", "")) != "ok"]
     if ai_errors:
@@ -134,9 +209,18 @@ def _collect_debug_issues(
     if decisions and all(d.action == "HOLD" for d in decisions):
         issues.append("All decisions were HOLD")
     if decisions and all(d.quantity == 0 for d in decisions):
-        issues.append("All sized quantities were 0")
+        sized_zero_reasons = execution_diagnostics.get("sized_zero_reasons", {})
+        if isinstance(sized_zero_reasons, dict) and sized_zero_reasons:
+            counts_str = ", ".join(f"{k}={v}" for k, v in sorted(sized_zero_reasons.items()))
+            issues.append(f"All sized quantities were 0 ({counts_str})")
+        else:
+            issues.append("All sized quantities were 0")
     if not fills:
-        issues.append("No fills were executed")
+        executable_orders = int(execution_diagnostics.get("executable_orders", 0) or 0)
+        if executable_orders > 0:
+            issues.append("No fills were executed")
+        else:
+            issues.append("No fills were executed (informational: no executable orders)")
 
     return issues
 
@@ -157,6 +241,7 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
     news_failure: str | None = None
     ai_failure: str | None = None
     news_fallback_used = False
+    news_cache_fallback_used = False
     news_raw_output: list[dict[str, Any]] = []
     try:
         news = news_provider.fetch_news(symbols)
@@ -164,10 +249,30 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
             maybe_debug = getattr(news_provider, "last_debug")
             if isinstance(maybe_debug, list):
                 news_raw_output = maybe_debug
+        rate_limited = any(str(item.get("status", "")) == "rate_limited" for item in news_raw_output)
+        if rate_limited and not news:
+            cached_news = _read_cached_news(data_dir)
+            if cached_news:
+                news = cached_news
+                news_fallback_used = True
+                news_cache_fallback_used = True
+                news_raw_output.append(
+                    {
+                        "symbol": "*",
+                        "status": "cache_fallback",
+                        "http_status": None,
+                        "result_count": len(cached_news),
+                        "error": "Used cached news after rate limit",
+                        "raw_response": None,
+                    }
+                )
     except Exception as exc:
         news_failure = f"{type(exc).__name__}: {exc}"
         news_fallback_used = True
         news = MockNewsProvider().fetch_news(symbols)
+
+    if news and not news_cache_fallback_used:
+        _write_cached_news(data_dir, news)
 
     try:
         ai_signals = ai_provider.score_news(news)
@@ -184,6 +289,7 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
     ai_by_symbol: dict[str, AiSignal] = {s.symbol: s for s in ai_signals}
     decisions: list[TradeDecision] = []
     prices: dict[str, float] = {}
+    sized_zero_reasons: dict[str, int] = defaultdict(int)
 
     for symbol in symbols:
         try:
@@ -202,15 +308,29 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
         )
 
         prices[symbol] = px
+        pre_size_cash = broker.cash
         sized = size_trade(
             decision=decision,
             latest_price=px,
             cash=broker.cash,
             max_allocation_per_trade=settings.max_allocation_per_trade,
         )
+        if sized.quantity == 0:
+            if sized.action != "BUY":
+                sized_zero_reasons["non_buy_action"] += 1
+            else:
+                budget = pre_size_cash * settings.max_allocation_per_trade
+                if px <= 0:
+                    sized_zero_reasons["invalid_price"] += 1
+                elif budget < px:
+                    sized_zero_reasons["insufficient_budget"] += 1
+                else:
+                    sized_zero_reasons["truncated_to_zero"] += 1
         decisions.append(sized)
 
     fills = []
+    executable_orders = 0
+    failed_orders: list[dict[str, Any]] = []
     held_quantities = defaultdict(int)
     snapshot = broker.snapshot(prices)
     for pos in snapshot.positions:
@@ -218,19 +338,46 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
 
     for d in decisions:
         if d.action == "BUY":
+            if d.quantity > 0:
+                executable_orders += 1
             fill = broker.buy(d.symbol, d.quantity, prices[d.symbol])
             if fill:
                 fills.append(fill)
+            elif d.quantity > 0:
+                failed_orders.append(
+                    {
+                        "symbol": d.symbol,
+                        "action": d.action,
+                        "quantity": d.quantity,
+                        "reason": broker.last_rejection_reason or "unknown",
+                    }
+                )
         elif d.action == "SELL":
             qty = held_quantities[d.symbol]
             if qty > 0:
+                executable_orders += 1
                 fill = broker.sell(d.symbol, qty, prices[d.symbol])
                 if fill:
                     fills.append(fill)
+                else:
+                    failed_orders.append(
+                        {
+                            "symbol": d.symbol,
+                            "action": d.action,
+                            "quantity": qty,
+                            "reason": broker.last_rejection_reason or "unknown",
+                        }
+                    )
 
     ending = broker.snapshot(prices)
 
     _mark_hidden_gems(decisions, symbols)
+    execution_diagnostics = {
+        "sized_zero_reasons": dict(sized_zero_reasons),
+        "executable_orders": executable_orders,
+        "failed_orders": failed_orders,
+    }
+    news_error_counts = _count_statuses([item for item in news_raw_output if str(item.get("status", "")) != "ok"])
     debug_issues = _collect_debug_issues(
         news_count=len(news),
         ai_signal_count=len(ai_signals),
@@ -240,6 +387,7 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
         fills=fills,
         news_failure=news_failure,
         ai_failure=ai_failure,
+        execution_diagnostics=execution_diagnostics,
     )
 
     recent = read_recent_reports(data_dir, limit=1)
@@ -261,15 +409,18 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
         news_status={
             "ok": news_failure is None,
             "fallback_used": news_fallback_used,
+            "cache_fallback_used": news_cache_fallback_used,
             "error": news_failure,
             "provider": settings.news_provider,
             "raw_output": news_raw_output,
+            "error_counts": news_error_counts,
         },
         ai_status={
             "ok": ai_failure is None,
             "error": ai_failure,
             "provider": settings.ai_provider,
         },
+        execution_diagnostics=execution_diagnostics,
         signal_policy=signal_policy,
         debug_issues=debug_issues,
         history_limit=settings.dashboard_history_limit,

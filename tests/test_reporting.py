@@ -52,8 +52,10 @@ class ReportingTests(unittest.TestCase):
                 news_status={
                     "ok": False,
                     "fallback_used": True,
+                    "cache_fallback_used": True,
                     "error": "JSONDecodeError: bad payload",
                     "provider": "hackclub",
+                    "error_counts": {"rate_limited": 1, "error": 1},
                     "raw_output": [
                         {
                             "symbol": "MSFT",
@@ -65,6 +67,11 @@ class ReportingTests(unittest.TestCase):
                     ],
                 },
                 ai_status={"ok": False, "error": "HTTP 401", "provider": "hackclub"},
+                execution_diagnostics={
+                    "sized_zero_reasons": {"insufficient_budget": 3},
+                    "executable_orders": 0,
+                    "failed_orders": [],
+                },
                 signal_policy={"ai_weight": 0.6, "conventional_weight": 0.4, "disabled": []},
                 debug_issues=["No fills were executed"],
                 history_limit=10,
@@ -79,7 +86,9 @@ class ReportingTests(unittest.TestCase):
             self.assertEqual(latest["ai_output_count"], 1)
             self.assertEqual(latest["ai_raw_output_count"], 1)
             self.assertEqual(latest["news_raw_output_count"], 1)
+            self.assertEqual(latest["news_error_counts"]["rate_limited"], 1)
             self.assertEqual(latest["ai_status"]["ok"], False)
+            self.assertEqual(latest["execution_diagnostics"]["executable_orders"], 0)
             self.assertIn("signal_performance", latest)
             self.assertIn("symbols_scanned", latest)
 
@@ -92,6 +101,8 @@ class ReportingTests(unittest.TestCase):
             self.assertIn("News feed failing or degraded", dashboard)
             self.assertIn("Provider Diagnostics", dashboard)
             self.assertIn("Raw News Responses", dashboard)
+            self.assertIn("Execution Diagnostics", dashboard)
+            self.assertIn("Cache fallback used", dashboard)
             self.assertIn("{&quot;error&quot;:&quot;boom&quot;}", dashboard)
 
 

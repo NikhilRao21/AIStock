@@ -40,6 +40,18 @@ class HackclubAiProvider(AiProvider):
     def score_news(self, news: list[NewsItem]) -> list[AiSignal]:
         self.last_debug = []
         if not news:
+            self.last_debug.append(
+                {
+                    "symbol": "*",
+                    "status": "empty_input",
+                    "http_status": None,
+                    "raw_response": None,
+                    "extracted_content": None,
+                    "error": "No news items were provided to AI provider",
+                    "parsed": None,
+                    "model": self._model,
+                }
+            )
             return []
 
         grouped: dict[str, list[NewsItem]] = {}

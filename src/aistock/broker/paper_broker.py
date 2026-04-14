@@ -17,14 +17,20 @@ class PaperBroker(Broker):
         self.cash = starting_cash
         self.fee_bps = fee_bps
         self._positions: dict[str, _Holding] = {}
+        self.last_rejection_reason: str | None = None
 
     def buy(self, symbol: str, quantity: int, price: float) -> Fill | None:
         if quantity <= 0:
+            self.last_rejection_reason = "quantity_zero"
+            return None
+        if price <= 0:
+            self.last_rejection_reason = "invalid_price"
             return None
         gross = quantity * price
         fee = gross * (self.fee_bps / 10_000)
         cost = gross + fee
         if cost > self.cash:
+            self.last_rejection_reason = "insufficient_cash"
             return None
 
         self.cash -= cost
@@ -35,13 +41,19 @@ class PaperBroker(Broker):
             new_qty = old.quantity + quantity
             old_cost = old.avg_cost * old.quantity
             self._positions[symbol] = _Holding(quantity=new_qty, avg_cost=(old_cost + gross) / new_qty)
+        self.last_rejection_reason = None
         return Fill(symbol=symbol, action="BUY", quantity=quantity, fill_price=price, fee=fee)
 
     def sell(self, symbol: str, quantity: int, price: float) -> Fill | None:
         if quantity <= 0:
+            self.last_rejection_reason = "quantity_zero"
+            return None
+        if price <= 0:
+            self.last_rejection_reason = "invalid_price"
             return None
         old = self._positions.get(symbol)
         if old is None or old.quantity <= 0:
+            self.last_rejection_reason = "no_position"
             return None
 
         qty = min(quantity, old.quantity)
@@ -55,6 +67,7 @@ class PaperBroker(Broker):
         else:
             self._positions[symbol] = _Holding(quantity=remain, avg_cost=old.avg_cost)
 
+        self.last_rejection_reason = None
         return Fill(symbol=symbol, action="SELL", quantity=qty, fill_price=price, fee=fee)
 
     def snapshot(self, market_prices: dict[str, float]) -> PortfolioSnapshot:

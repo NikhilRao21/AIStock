@@ -139,6 +139,25 @@ class HackclubProvidersTests(unittest.TestCase):
         self.assertEqual(signals[0].action, "HOLD")
         self.assertEqual(provider.last_debug[0]["status"], "auth_error")
 
+    def test_news_provider_rate_limit_sets_debug_status(self) -> None:
+        provider = HackclubSearchNewsProvider(max_retries=0)
+        response = MagicMock()
+        response.status_code = 429
+        response.text = "rate limit"
+
+        with patch.object(provider._session, "get", return_value=response):
+            items = provider.fetch_news(["AAPL"]) 
+
+        self.assertEqual(items, [])
+        self.assertEqual(provider.last_debug[0]["status"], "rate_limited")
+
+    def test_ai_provider_empty_news_records_empty_input(self) -> None:
+        provider = HackclubAiProvider()
+        signals = provider.score_news([])
+
+        self.assertEqual(signals, [])
+        self.assertEqual(provider.last_debug[0]["status"], "empty_input")
+
 
 if __name__ == "__main__":
     unittest.main()

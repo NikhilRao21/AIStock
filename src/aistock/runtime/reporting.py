@@ -26,6 +26,7 @@ def write_cycle_report(
     previous_positions: list[Position],
     news_status: dict[str, Any] | None,
     ai_status: dict[str, Any] | None,
+    execution_diagnostics: dict[str, Any] | None,
     signal_policy: dict[str, Any] | None,
     debug_issues: list[str],
     history_limit: int,
@@ -114,7 +115,9 @@ def write_cycle_report(
         "hidden_gem_candidates": hidden_gem_candidates,
         "news_status": news_status or {"ok": True, "fallback_used": False, "error": None},
         "news_raw_output_count": len((news_status or {}).get("raw_output", [])) if isinstance(news_status, dict) else 0,
+        "news_error_counts": (news_status or {}).get("error_counts", {}) if isinstance(news_status, dict) else {},
         "ai_status": ai_status or {"ok": True, "error": None, "provider": "unknown"},
+        "execution_diagnostics": execution_diagnostics or {"sized_zero_reasons": {}, "executable_orders": 0, "failed_orders": []},
         "signal_policy": signal_policy or {"ai_weight": None, "conventional_weight": None, "disabled": []},
         "signal_performance": signal_performance,
         "debug_issues": debug_issues,
@@ -326,6 +329,20 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
     news_ok = bool(news_status.get("ok", True))
     news_error = news_status.get("error") or "None"
     news_raw_output = news_status.get("raw_output", []) if isinstance(news_status, dict) else []
+    news_error_counts = latest.get("news_error_counts", {})
+    news_error_count_rows = "".join(
+        f"<li>{escape(str(k))}: {escape(str(v))}</li>" for k, v in sorted(news_error_counts.items())
+    )
+
+    execution_diagnostics = latest.get("execution_diagnostics", {})
+    zero_reason_rows = "".join(
+        f"<li>{escape(str(k))}: {escape(str(v))}</li>"
+        for k, v in sorted((execution_diagnostics.get("sized_zero_reasons") or {}).items())
+    )
+    failed_order_rows = "".join(
+        f"<tr><td>{escape(str(item.get('symbol', '')))}</td><td>{escape(str(item.get('action', '')))}</td><td>{escape(str(item.get('quantity', '')))}</td><td>{escape(str(item.get('reason', '')))}</td></tr>"
+        for item in (execution_diagnostics.get("failed_orders") or [])
+    )
 
     ai_status = latest.get("ai_status", {})
     ai_ok = bool(ai_status.get("ok", True))
@@ -356,20 +373,23 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
   <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
   <title>AIStock Dashboard</title>
   <style>
-    :root {{ --bg:#0f172a; --card:#111827; --text:#e5e7eb; --muted:#9ca3af; --ok:#22c55e; --bad:#ef4444; --accent:#93c5fd; }}
-    body {{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif; background: radial-gradient(circle at top, #1f2937, #020617 60%); color:var(--text); }}
-    .wrap {{ max-width: 1200px; margin: 0 auto; padding: 24px; }}
-    .grid {{ display:grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap:12px; }}
-    .card {{ background:rgba(17,24,39,.9); border:1px solid #374151; border-radius:14px; padding:14px; }}
-    .label {{ color:var(--muted); font-size:12px; }}
-    .value {{ font-size:22px; font-weight:700; }}
-    table {{ width:100%; border-collapse: collapse; }}
-    th, td {{ border-bottom:1px solid #374151; text-align:left; padding:8px; font-size:13px; vertical-align: top; }}
-    th {{ color:var(--accent); }}
-    ul {{ margin: 8px 0 0 18px; }}
-    .status-ok {{ color: var(--ok); }}
-    .status-bad {{ color: var(--bad); }}
-    pre {{ margin:0; white-space: pre-wrap; max-height: 220px; overflow:auto; }}
+        :root {{ --bg:#071029; --card:#071025; --text:#dfeefe; --muted:#9ca3af; --ok:#22c55e; --bad:#ef4444; --accent:#60a5fa; --glass: rgba(255,255,255,0.03); }}
+        body {{ margin:0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; background: linear-gradient(180deg,#041125 0%,#021021 100%); color:var(--text); -webkit-font-smoothing:antialiased; }}
+        .wrap {{ max-width:1200px; margin: 24px auto; padding: 24px; }}
+        .grid {{ display:grid; grid-template-columns: repeat(auto-fit, minmax(260px,1fr)); gap:16px; align-items:start; }}
+        .card {{ background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border:1px solid rgba(255,255,255,0.03); border-radius:12px; padding:16px; box-shadow:0 8px 30px rgba(2,6,23,0.6); }}
+        .card-header {{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; }}
+        .label {{ color:var(--muted); font-size:12px; margin:0; }}
+        .value {{ font-size:20px; font-weight:700; margin:0; }}
+        .status-ok {{ color:var(--ok); background: rgba(34,197,94,0.08); padding:4px 8px; border-radius:999px; font-weight:600; border:1px solid rgba(34,197,94,0.12); display:inline-block; }}
+        .status-bad {{ color:var(--bad); background: rgba(239,68,68,0.06); padding:4px 8px; border-radius:999px; font-weight:600; border:1px solid rgba(239,68,68,0.12); display:inline-block; }}
+        .card table {{ width:100%; border-collapse: collapse; margin-top:8px; }}
+        th, td {{ border-bottom:1px solid rgba(255,255,255,0.04); text-align:left; padding:10px; font-size:13px; vertical-align: top; }}
+        th {{ color:var(--accent); font-weight:700; position:sticky; top:0; background: linear-gradient(180deg, rgba(0,0,0,0.04), rgba(0,0,0,0.02)); }}
+        ul {{ margin: 8px 0 0 18px; }}
+        pre {{ margin:0; white-space: pre-wrap; max-height:280px; overflow:auto; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace; background: rgba(0,0,0,0.04); padding:8px; border-radius:8px; }}
+        .badge {{ display:inline-block; padding:4px 8px; border-radius:999px; font-size:12px; background: rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.03); }}
+        .small {{ font-size:12px; color:var(--muted); }}
   </style>
 </head>
 <body>
@@ -461,8 +481,27 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
     <div class=\"card\">
       <p class=\"{'status-ok' if news_ok else 'status-bad'}\">{'News feed healthy' if news_ok else 'News feed failing or degraded'}</p>
       <p><strong>Fallback used:</strong> {news_status.get('fallback_used', False)}</p>
+            <p><strong>Cache fallback used:</strong> {news_status.get('cache_fallback_used', False)}</p>
       <p><strong>Error:</strong> {escape(str(news_error))}</p>
+            <p><strong>Error Counts:</strong></p>
+            <ul>{news_error_count_rows or '<li>None</li>'}</ul>
     </div>
+
+        <h2>Execution Diagnostics</h2>
+        <div class="grid">
+            <div class="card">
+                <p><strong>Executable orders:</strong> {execution_diagnostics.get('executable_orders', 0)}</p>
+                <p><strong>Zero Quantity Reasons:</strong></p>
+                <ul>{zero_reason_rows or '<li>None</li>'}</ul>
+            </div>
+            <div class="card">
+                <h3>Failed Orders</h3>
+                <table>
+                    <thead><tr><th>Symbol</th><th>Action</th><th>Qty</th><th>Reason</th></tr></thead>
+                    <tbody>{failed_order_rows or '<tr><td colspan="4">No failed executable orders</td></tr>'}</tbody>
+                </table>
+            </div>
+        </div>
 
         <h2>Provider Diagnostics</h2>
         <div class=\"grid\">

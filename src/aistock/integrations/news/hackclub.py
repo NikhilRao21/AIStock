@@ -74,6 +74,11 @@ class HackclubSearchNewsProvider(NewsProvider):
                     debug_item["error"] = f"HTTP {resp.status_code}: authorization failed"
                     self.last_debug.append(debug_item)
                     continue
+                if resp.status_code == 429:
+                    debug_item["status"] = "rate_limited"
+                    debug_item["error"] = "HTTP 429: rate limited"
+                    self.last_debug.append(debug_item)
+                    continue
                 if resp.status_code == 404:
                     debug_item["status"] = "not_found"
                     debug_item["error"] = "HTTP 404: endpoint not found"
