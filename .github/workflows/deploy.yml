@@ -23,7 +23,7 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT || 22 }}
           script: |
-            set -e
+            set -euo pipefail
 
             APP_DIR="/opt/AIStock"
             REPO_URL="https://github.com/NikhilRao21/AIStock.git"
@@ -58,11 +58,26 @@ jobs:
             "$CONDA_BIN" run -n aistock pip install -r requirements.txt
 
             if ! sudo systemctl restart aistock-paper.service; then
+              echo "Initial restart failed. Printing service diagnostics..."
+              sudo systemctl status aistock-paper.service --no-pager || true
+              sudo journalctl -u aistock-paper.service -n 120 --no-pager || true
+
               if [ -n "$PREV_COMMIT" ]; then
                 git checkout -f "$PREV_COMMIT"
                 "$CONDA_BIN" run -n aistock pip install -r requirements.txt
+
+                set +e
                 sudo systemctl restart aistock-paper.service
+                ROLLBACK_RC=$?
+                set -e
+
+                if [ "$ROLLBACK_RC" -ne 0 ]; then
+                  echo "Rollback restart also failed. Printing rollback diagnostics..."
+                  sudo systemctl status aistock-paper.service --no-pager || true
+                  sudo journalctl -u aistock-paper.service -n 120 --no-pager || true
+                fi
               fi
+
               exit 1
             fi
 
