@@ -116,6 +116,11 @@ Auto-universe controls:
 - `AUTO_UNIVERSE_MIN_PRICE` minimum tradable price filter
 - `AUTO_UNIVERSE_MAX_PRICE` maximum tradable price filter
 
+Cycle cadence control:
+
+- `CYCLE_INTERVAL_MINS` interval used by the deploy timer during market hours
+- Default: `5`
+
 ## Auto Deploy On Server
 
 This repo now includes a GitHub Actions workflow at `.github/workflows/deploy.yml`.

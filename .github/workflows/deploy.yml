@@ -67,6 +67,13 @@ jobs:
 
             SERVICE_USER="${{ secrets.SERVER_USER }}"
             SERVICE_GROUP="$(id -gn "$SERVICE_USER")"
+            CYCLE_INTERVAL_MINS="5"
+            if [ -f "$APP_DIR/.env" ]; then
+              ENV_INTERVAL="$(grep -E '^CYCLE_INTERVAL_MINS=' "$APP_DIR/.env" | tail -n 1 | cut -d= -f2- | tr -d '[:space:]')"
+              if [ -n "$ENV_INTERVAL" ]; then
+                CYCLE_INTERVAL_MINS="$ENV_INTERVAL"
+              fi
+            fi
 
             # Ensure runtime data directory is writable by the trading/dashboard service user.
             sudo chown -R "$SERVICE_USER:$SERVICE_GROUP" "$APP_DIR/data"
@@ -88,13 +95,13 @@ jobs:
               "ExecStart=$CONDA_ENV_PREFIX/bin/python $APP_DIR/scripts/run_cycle.py" \
               | sudo tee /etc/systemd/system/aistock-trader.service >/dev/null
 
-            # Run every 5 minutes during US market hours (Mon-Fri, 13:00-20:00 UTC).
+            # Run every CYCLE_INTERVAL_MINS minutes during US market hours (Mon-Fri, 13:00-20:00 UTC).
             printf '%s\n' \
               '[Unit]' \
               'Description=AIStock Trader Schedule (Market Hours)' \
               '' \
               '[Timer]' \
-              'OnCalendar=Mon..Fri *-*-* 13,14,15,16,17,18,19:00/5:00 UTC' \
+              "OnCalendar=Mon..Fri *-*-* 13,14,15,16,17,18,19:00/${CYCLE_INTERVAL_MINS}:00 UTC" \
               'OnCalendar=Mon..Fri *-*-* 20:00:00 UTC' \
               'Persistent=true' \
               'Unit=aistock-trader.service' \
