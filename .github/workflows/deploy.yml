@@ -79,6 +79,9 @@ jobs:
             sudo chown -R "$SERVICE_USER:$SERVICE_GROUP" "$APP_DIR/data"
             sudo chmod -R u+rwX "$APP_DIR/data"
 
+            # Fresh start on every deploy: clear everything currently under data/.
+            sudo find "$APP_DIR/data" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+
             # One-shot trading run service; invoked by timer during market hours.
             printf '%s\n' \
               '[Unit]' \
@@ -133,13 +136,6 @@ jobs:
             sudo systemctl disable --now aistock-paper.service || true
             sudo systemctl enable --now aistock-dashboard.service
             sudo systemctl enable --now aistock-trader.timer
-
-            # Fresh start on every deploy: clear persisted portfolio and cycle artifacts.
-            sudo rm -f \
-              "$APP_DIR/data/broker_state.json" \
-              "$APP_DIR/data/latest_cycle.json" \
-              "$APP_DIR/data/cycle_reports.jsonl" \
-              "$APP_DIR/data/dashboard.html"
 
             # Start a one-time cycle only to verify trader service wiring after deploy.
             sudo systemctl start aistock-trader.service
