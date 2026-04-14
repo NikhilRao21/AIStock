@@ -48,7 +48,10 @@ def combine_signals(
                 family="conventional",
                 action=conventional.action,
                 confidence=conventional.confidence,
-                details=f"momentum_5d={conventional.momentum_5d:.4f}, momentum_20d={conventional.momentum_20d:.4f}",
+                details={
+                    "momentum_5d": round(conventional.momentum_5d, 6),
+                    "momentum_20d": round(conventional.momentum_20d, 6),
+                },
             ),
         ],
     )

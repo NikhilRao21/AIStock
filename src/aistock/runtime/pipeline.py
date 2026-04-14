@@ -8,6 +8,7 @@ from typing import Any
 
 from aistock.broker.paper_broker import PaperBroker
 from aistock.core.config import settings
+from aistock.core.tz import is_market_open
 from aistock.core.types import AiSignal, NewsItem, TradeDecision
 from aistock.integrations.ai.hackclub import HackclubAiProvider
 from aistock.integrations.ai.mock import MockAiProvider
@@ -290,6 +291,7 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
     decisions: list[TradeDecision] = []
     prices: dict[str, float] = {}
     sized_zero_reasons: dict[str, int] = defaultdict(int)
+    blocked_by_market_hours = 0
 
     for symbol in symbols:
         try:
@@ -339,19 +341,36 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
     for d in decisions:
         if d.action == "BUY":
             if d.quantity > 0:
-                executable_orders += 1
-            fill = broker.buy(d.symbol, d.quantity, prices[d.symbol])
-            if fill:
-                fills.append(fill)
-            elif d.quantity > 0:
-                failed_orders.append(
-                    {
-                        "symbol": d.symbol,
-                        "action": d.action,
-                        "quantity": d.quantity,
-                        "reason": broker.last_rejection_reason or "unknown",
-                    }
-                )
+                # If enabled, block BUYs executed outside market hours
+                if settings.buy_only_during_market_hours and not is_market_open(
+                    None,
+                    tz_name=settings.display_timezone,
+                    open_hhmm=settings.market_open_hhmm,
+                    close_hhmm=settings.market_close_hhmm,
+                ):
+                    blocked_by_market_hours += 1
+                    failed_orders.append(
+                        {
+                            "symbol": d.symbol,
+                            "action": d.action,
+                            "quantity": d.quantity,
+                            "reason": "outside_market_hours",
+                        }
+                    )
+                else:
+                    executable_orders += 1
+                    fill = broker.buy(d.symbol, d.quantity, prices[d.symbol])
+                    if fill:
+                        fills.append(fill)
+                    elif d.quantity > 0:
+                        failed_orders.append(
+                            {
+                                "symbol": d.symbol,
+                                "action": d.action,
+                                "quantity": d.quantity,
+                                "reason": broker.last_rejection_reason or "unknown",
+                            }
+                        )
         elif d.action == "SELL":
             qty = held_quantities[d.symbol]
             if qty > 0:
@@ -376,6 +395,7 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
         "sized_zero_reasons": dict(sized_zero_reasons),
         "executable_orders": executable_orders,
         "failed_orders": failed_orders,
+        "blocked_by_market_hours": blocked_by_market_hours,
     }
     news_error_counts = _count_statuses([item for item in news_raw_output if str(item.get("status", "")) != "ok"])
     debug_issues = _collect_debug_issues(

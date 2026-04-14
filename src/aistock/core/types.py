@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Any
 
 Action = Literal["BUY", "SELL", "HOLD"]
 
@@ -38,7 +38,7 @@ class SignalSnapshot:
     family: str
     action: Action
     confidence: float
-    details: str = ""
+    details: Any = ""
 
 
 @dataclass(slots=True)

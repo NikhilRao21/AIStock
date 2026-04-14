@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     dashboard_history_limit: int = 200
     cycle_interval_mins: int = 5
 
+    # Display / timezone settings
+    display_timezone: str = "America/New_York"
+    buy_only_during_market_hours: bool = False
+    market_open_hhmm: str = "09:30"
+    market_close_hhmm: str = "16:00"
+
     starting_cash: float = 100_000.0
     max_allocation_per_trade: float = 0.03
     stop_loss_pct: float = 0.08

@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any
 
 from aistock.core.types import AiSignal, Fill, PortfolioSnapshot, Position, TradeDecision
+from aistock.core.tz import format_iso_in_tz
+from aistock.core.config import settings
 
 _SIGNAL_PERFORMANCE_MIN_TRADES = 5
 _SIGNAL_PERFORMANCE_MIN_WIN_RATE = 0.45
@@ -32,6 +34,25 @@ def write_cycle_report(
     history_limit: int,
 ) -> dict:
     data_dir.mkdir(parents=True, exist_ok=True)
+
+    # Persist program start baseline if missing. This is the baseline equity
+    # used to compute running net profit across cycles stored in `data/`.
+    program_start_path = data_dir / "program_start.json"
+    if program_start_path.exists():
+        try:
+            program_start = json.loads(program_start_path.read_text(encoding="utf-8"))
+            baseline_equity = float(program_start.get("baseline_equity", round(portfolio.equity, 2)))
+        except Exception:
+            baseline_equity = round(portfolio.equity, 2)
+            program_start = {"started_at": format_iso_in_tz(datetime.now(timezone.utc), settings.display_timezone), "baseline_equity": baseline_equity}
+    else:
+        baseline_equity = round(portfolio.equity, 2)
+        program_start = {"started_at": format_iso_in_tz(datetime.now(timezone.utc), settings.display_timezone), "baseline_equity": baseline_equity}
+        try:
+            program_start_path.write_text(json.dumps(program_start, indent=2), encoding="utf-8")
+        except Exception:
+            # best-effort write; continue even if write fails
+            pass
 
     history = read_recent_reports(data_dir, history_limit)
     signal_performance = _build_signal_performance(history, market_prices)
@@ -95,6 +116,10 @@ def write_cycle_report(
 
     report = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp_et": format_iso_in_tz(datetime.now(timezone.utc), settings.display_timezone),
+        "program_start": program_start,
+        "net_profit": round(portfolio.equity - baseline_equity, 2),
+        "net_profit_pct": None if baseline_equity == 0 else round((portfolio.equity - baseline_equity) / baseline_equity * 100.0, 2),
         "symbols_scanned": symbols_scanned,
         "decision_count": len(decisions),
         "fill_count": len(fills),
@@ -124,6 +149,7 @@ def write_cycle_report(
         "fills": [
             {
                 "timestamp": f.timestamp.isoformat(),
+                "timestamp_et": format_iso_in_tz(f.timestamp, settings.display_timezone),
                 "symbol": f.symbol,
                 "action": f.action,
                 "quantity": f.quantity,
@@ -156,11 +182,57 @@ def write_cycle_report(
     }
 
     reports_path = data_dir / "cycle_reports.jsonl"
+    # Append BUY fills to a persistent purchase log (JSONL)
+    purchase_log_path = data_dir / "purchase_log.jsonl"
+    if fills:
+        try:
+            with purchase_log_path.open("a", encoding="utf-8") as plf:
+                for f in fills:
+                    try:
+                        if str(f.action).upper() == "BUY" and (f.quantity or 0) > 0:
+                            entry = {
+                                "timestamp": f.timestamp.isoformat(),
+                                "timestamp_et": format_iso_in_tz(f.timestamp, settings.display_timezone),
+                                "symbol": f.symbol,
+                                "action": f.action,
+                                "quantity": f.quantity,
+                                "fill_price": round(f.fill_price, 4),
+                                "fee": round(f.fee, 4),
+                                "equity": round(portfolio.equity, 2),
+                            }
+                            plf.write(json.dumps(entry) + "\n")
+                    except Exception:
+                        # best-effort per-fill
+                        continue
+        except Exception:
+            # best-effort append
+            pass
+
     with reports_path.open("a", encoding="utf-8") as fp:
         fp.write(json.dumps(report) + "\n")
 
     latest_path = data_dir / "latest_cycle.json"
     latest_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+
+    # Include recent purchase log entries (last 50) in the latest report
+    try:
+        purchases: list[dict] = []
+        if purchase_log_path.exists():
+            with purchase_log_path.open("r", encoding="utf-8") as plf:
+                for line in plf:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        purchases.append(json.loads(line))
+                    except Exception:
+                        continue
+        report["purchase_log"] = purchases[-50:]
+        # Update latest_cycle.json with purchase_log included
+        latest_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    except Exception:
+        # best-effort; don't fail the cycle on logging issues
+        pass
 
     _write_dashboard_html(data_dir, report, history + [report])
     return report
@@ -193,6 +265,7 @@ def _build_signal_performance(history: list[dict], latest_prices: dict[str, floa
     family_stats: dict[str, dict[str, float]] = defaultdict(
         lambda: {"trades": 0.0, "wins": 0.0, "return_sum": 0.0, "confidence_sum": 0.0}
     )
+    method_stats: dict[str, dict[str, dict[str, float]]] = defaultdict(lambda: {})
 
     for report in history:
         fill_index: dict[tuple[str, str, int], dict[str, Any]] = {}
@@ -232,6 +305,21 @@ def _build_signal_performance(history: list[dict], latest_prices: dict[str, floa
                 stats["return_sum"] += outcome
                 stats["confidence_sum"] += float(signal.get("confidence", 0.0) or 0.0)
 
+                # If conventional signal supplies per-method details, aggregate per-method stats
+                if family == "conventional":
+                    details = signal.get("details")
+                    if isinstance(details, dict):
+                        family_methods = method_stats.setdefault(family, {})
+                        for method_name, method_val in details.items():
+                            m = family_methods.get(method_name)
+                            if m is None:
+                                family_methods[method_name] = {"trades": 0.0, "wins": 0.0, "return_sum": 0.0, "confidence_sum": 0.0}
+                                m = family_methods[method_name]
+                            m["trades"] += 1
+                            m["wins"] += 1 if outcome > 0 else 0
+                            m["return_sum"] += outcome
+                            m["confidence_sum"] += float(signal.get("confidence", 0.0) or 0.0)
+
     families: dict[str, dict[str, Any]] = {}
     underperformers: list[dict[str, Any]] = []
     for family, stats in family_stats.items():
@@ -264,6 +352,25 @@ def _build_signal_performance(history: list[dict], latest_prices: dict[str, floa
             "avg_confidence": round(avg_confidence, 4),
             "status": status,
         }
+        # attach per-method breakdown if available
+        if family in method_stats:
+            methods_summary: dict[str, dict[str, float]] = {}
+            for method_name, mstats in method_stats[family].items():
+                m_trades = int(mstats["trades"])
+                if m_trades <= 0:
+                    continue
+                m_win_rate = mstats["wins"] / m_trades
+                m_avg_return = mstats["return_sum"] / m_trades
+                m_avg_confidence = mstats["confidence_sum"] / m_trades
+                methods_summary[method_name] = {
+                    "trades": m_trades,
+                    "wins": int(mstats["wins"]),
+                    "win_rate": round(m_win_rate, 4),
+                    "avg_return": round(m_avg_return, 4),
+                    "avg_confidence": round(m_avg_confidence, 4),
+                }
+            if methods_summary:
+                families[family]["methods"] = methods_summary
 
     return {
         "families": families,
@@ -318,8 +425,13 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
         for item in ai_raw_output
     )
 
+    purchase_rows = "".join(
+        f"<tr><td>{escape(str(item.get('timestamp_et', item.get('timestamp', ''))))}</td><td>{escape(str(item.get('symbol', '')))}</td><td>{item.get('quantity', '')}</td><td>${item.get('fill_price', '')}</td><td>${item.get('fee', '')}</td><td>${item.get('equity', '')}</td></tr>"
+        for item in latest.get('purchase_log', [])
+    )
+
     recent_rows = "".join(
-        f"<tr><td>{escape(str(r.get('timestamp', '')))}</td><td>{r.get('equity', '')}</td><td>{r.get('equity_delta', '')}</td><td>{r.get('fill_count', '')}</td><td>{len(r.get('hidden_gem_candidates', []))}</td><td>{'fail' if not r.get('news_status', {}).get('ok', True) else 'ok'}</td></tr>"
+        f"<tr><td>{escape(str(r.get('timestamp_et', r.get('timestamp', ''))))}</td><td>{r.get('equity', '')}</td><td>{r.get('equity_delta', '')}</td><td>{r.get('fill_count', '')}</td><td>{len(r.get('hidden_gem_candidates', []))}</td><td>{'fail' if not r.get('news_status', {}).get('ok', True) else 'ok'}</td></tr>"
         for r in reversed(history[-30:])
     )
 
@@ -395,12 +507,13 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
 <body>
   <div class=\"wrap\">
     <h1>AIStock Cycle Dashboard</h1>
-    <p>Updated: {escape(str(latest.get('timestamp', '')))}</p>
+    <p>Updated: {escape(str(latest.get('timestamp_et', latest.get('timestamp', ''))))}</p>
 
     <div class=\"grid\">
       <div class=\"card\"><div class=\"label\">Portfolio Equity</div><div class=\"value\">${latest.get('equity', '')}</div></div>
       <div class=\"card\"><div class=\"label\">Cash</div><div class=\"value\">${latest.get('cash', '')}</div></div>
-      <div class=\"card\"><div class=\"label\">Equity Change</div><div class=\"value\">{latest.get('equity_delta', 'N/A')}</div></div>
+    <div class=\"card\"><div class=\"label\">Equity Change</div><div class=\"value\">{latest.get('equity_delta', 'N/A')}</div></div>
+    <div class=\"card\"><div class=\"label\">Net Profit</div><div class=\"value\">${latest.get('net_profit', '')} {('('+str(latest.get('net_profit_pct'))+'%') if latest.get('net_profit_pct') is not None else ''}</div></div>
       <div class=\"card\"><div class=\"label\">Symbols Scanned</div><div class=\"value\">{len(latest.get('symbols_scanned', []))}</div></div>
       <div class=\"card\"><div class=\"label\">AI Outputs</div><div class=\"value\">{len(ai_output)}</div></div>
       <div class=\"card\"><div class=\"label\">Raw AI Responses</div><div class=\"value\">{len(ai_raw_output)}</div></div>
@@ -453,13 +566,24 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
       </table>
     </div>
 
-    <h2>Raw AI Provider Output</h2>
-    <div class=\"card\">
-      <table>
-        <thead><tr><th>Symbol</th><th>Status</th><th>HTTP</th><th>Error</th><th>Raw Response</th></tr></thead>
-        <tbody>{ai_raw_rows or '<tr><td colspan="5">No raw AI output captured</td></tr>'}</tbody>
-      </table>
-    </div>
+        <h2>Raw AI Provider Output</h2>
+        <div class=\"card\">
+            <details>
+                <summary>Raw AI Provider Output (click to expand)</summary>
+                <table>
+                    <thead><tr><th>Symbol</th><th>Status</th><th>HTTP</th><th>Error</th><th>Raw Response</th></tr></thead>
+                    <tbody>{ai_raw_rows or '<tr><td colspan="5">No raw AI output captured</td></tr>'}</tbody>
+                </table>
+            </details>
+        </div>
+
+        <h2>Purchase Log</h2>
+        <div class=\"card\">
+            <table>
+                <thead><tr><th>Time</th><th>Symbol</th><th>Qty</th><th>Price</th><th>Fee</th><th>Equity</th></tr></thead>
+                <tbody>{purchase_rows or '<tr><td colspan="6">No purchases logged</td></tr>'}</tbody>
+            </table>
+        </div>
 
     <h2>Signal Performance</h2>
     <div class=\"card\">
@@ -511,13 +635,16 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
                 <p class=\"{'status-ok' if ai_ok else 'status-bad'}\">{'Healthy' if ai_ok else 'Failing'}</p>
                 <p><strong>Error:</strong> {escape(str(ai_error))}</p>
             </div>
-            <div class=\"card\">
-                <h3>News Provider Raw Output</h3>
-                <table>
-                    <thead><tr><th>Symbol</th><th>Status</th><th>HTTP</th><th>Error</th><th>Raw Response</th></tr></thead>
-                    <tbody>{news_provider_rows or '<tr><td colspan="5">No raw news output captured</td></tr>'}</tbody>
-                </table>
-            </div>
+                        <div class=\"card\"> 
+                                <h3>News Provider Raw Output</h3>
+                                <details>
+                                    <summary>Raw News Provider Output (click to expand)</summary>
+                                    <table>
+                                        <thead><tr><th>Symbol</th><th>Status</th><th>HTTP</th><th>Error</th><th>Raw Response</th></tr></thead>
+                                        <tbody>{news_provider_rows or '<tr><td colspan="5">No raw news output captured</td></tr>'}</tbody>
+                                    </table>
+                                </details>
+                        </div>
         </div>
 
     <h2>Recent Cycles</h2>
