@@ -64,3 +64,30 @@ class PaperBroker(Broker):
             positions.append(Position(symbol=symbol, quantity=h.quantity, avg_cost=h.avg_cost))
             equity += h.quantity * market_prices.get(symbol, h.avg_cost)
         return PortfolioSnapshot(cash=self.cash, equity=equity, positions=positions)
+
+    def export_state(self) -> dict:
+        return {
+            "cash": self.cash,
+            "fee_bps": self.fee_bps,
+            "positions": {
+                symbol: {"quantity": h.quantity, "avg_cost": h.avg_cost}
+                for symbol, h in self._positions.items()
+            },
+        }
+
+    @classmethod
+    def from_state(cls, state: dict, fallback_starting_cash: float) -> "PaperBroker":
+        broker = cls(
+            starting_cash=float(state.get("cash", fallback_starting_cash)),
+            fee_bps=float(state.get("fee_bps", 5.0)),
+        )
+        positions = state.get("positions", {})
+        if isinstance(positions, dict):
+            for symbol, payload in positions.items():
+                if not isinstance(payload, dict):
+                    continue
+                qty = int(payload.get("quantity", 0))
+                avg_cost = float(payload.get("avg_cost", 0.0))
+                if qty > 0 and avg_cost >= 0:
+                    broker._positions[symbol] = _Holding(quantity=qty, avg_cost=avg_cost)
+        return broker

@@ -1,0 +1,26 @@
+{
+  "cash": 85841.01401080322,
+  "fee_bps": 5.0,
+  "positions": {
+    "AAPL": {
+      "quantity": 11,
+      "avg_cost": 259.20001220703125
+    },
+    "MSFT": {
+      "quantity": 7,
+      "avg_cost": 384.3699951171875
+    },
+    "GOOGL": {
+      "quantity": 9,
+      "avg_cost": 321.30999755859375
+    },
+    "AMZN": {
+      "quantity": 12,
+      "avg_cost": 239.88999938964844
+    },
+    "NVDA": {
+      "quantity": 15,
+      "avg_cost": 189.30999755859375
+    }
+  }
+}

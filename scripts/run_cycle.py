@@ -6,6 +6,12 @@ from aistock.runtime.pipeline import run_one_cycle
 def main() -> None:
     result = run_one_cycle()
     portfolio = result["portfolio"]
+    report = result.get("cycle_report", {})
+
+    print(f"Scanned symbols: {len(result.get('symbols', []))}")
+    if result.get("symbols"):
+        print("Universe sample:", ", ".join(result["symbols"][:10]))
+
     print("Decisions:")
     for d in result["decisions"]:
         print(f"- {d.symbol}: {d.action} qty={d.quantity} conf={d.confidence:.2f} reason={d.reason}")
@@ -21,6 +27,11 @@ def main() -> None:
     print(f"- cash={portfolio.cash:.2f}")
     print(f"- equity={portfolio.equity:.2f}")
     print(f"- positions={[(p.symbol, p.quantity, round(p.avg_cost, 2)) for p in portfolio.positions]}")
+    print(f"- equity_delta={report.get('equity_delta')}")
+    print("\nDashboard files:")
+    print("- data/latest_cycle.json")
+    print("- data/cycle_reports.jsonl")
+    print("- data/dashboard.html")
 
 
 if __name__ == "__main__":

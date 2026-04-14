@@ -63,45 +63,100 @@ jobs:
             "$CONDA_BIN" run -p "$CONDA_ENV_PREFIX" python -c "import sys; print(sys.executable)"
             "$CONDA_BIN" run -p "$CONDA_ENV_PREFIX" python -c "import pkgutil; print('python-smoke-ok')"
 
+            sudo mkdir -p "$APP_DIR/data"
+
+            SERVICE_USER="${{ secrets.SERVER_USER }}"
+
+            # One-shot trading run service; invoked by timer during market hours.
+            printf '%s\n' \
+              '[Unit]' \
+              'Description=AIStock Trader One Cycle' \
+              'After=network-online.target' \
+              'Wants=network-online.target' \
+              '' \
+              '[Service]' \
+              'Type=oneshot' \
+              "User=$SERVICE_USER" \
+              "WorkingDirectory=$APP_DIR" \
+              "Environment=PYTHONPATH=$APP_DIR/src" \
+              "EnvironmentFile=$APP_DIR/.env" \
+              "ExecStart=$CONDA_ENV_PREFIX/bin/python $APP_DIR/scripts/run_cycle.py" \
+              | sudo tee /etc/systemd/system/aistock-trader.service >/dev/null
+
+            # Run every 30 minutes during US market hours (Mon-Fri, 13:30-20:00 UTC).
+            printf '%s\n' \
+              '[Unit]' \
+              'Description=AIStock Trader Schedule (Market Hours)' \
+              '' \
+              '[Timer]' \
+              'OnCalendar=Mon..Fri *-*-* 13,14,15,16,17,18,19:00,30:00 UTC' \
+              'OnCalendar=Mon..Fri *-*-* 20:00:00 UTC' \
+              'Persistent=true' \
+              'Unit=aistock-trader.service' \
+              '' \
+              '[Install]' \
+              'WantedBy=timers.target' \
+              | sudo tee /etc/systemd/system/aistock-trader.timer >/dev/null
+
+            # Dashboard web service.
+            printf '%s\n' \
+              '[Unit]' \
+              'Description=AIStock Dashboard Web Server' \
+              'After=network-online.target' \
+              'Wants=network-online.target' \
+              '' \
+              '[Service]' \
+              'Type=simple' \
+              "User=$SERVICE_USER" \
+              "WorkingDirectory=$APP_DIR/data" \
+              "ExecStart=$CONDA_ENV_PREFIX/bin/python -m http.server 8080 --bind 0.0.0.0" \
+              'Restart=always' \
+              'RestartSec=10' \
+              '' \
+              '[Install]' \
+              'WantedBy=multi-user.target' \
+              | sudo tee /etc/systemd/system/aistock-dashboard.service >/dev/null
+
+            sudo systemctl daemon-reload
+            sudo systemctl disable --now aistock-paper.service || true
+            sudo systemctl enable --now aistock-dashboard.service
+            sudo systemctl enable --now aistock-trader.timer
+
+            # Start a one-time cycle only to verify trader service wiring after deploy.
+            sudo systemctl start aistock-trader.service
+
             set +e
-            sudo systemctl restart aistock-paper.service
-            RESTART_RC=$?
+            sudo systemctl is-active --quiet aistock-dashboard.service
+            DASHBOARD_RC=$?
             set -e
 
-            if [ "$RESTART_RC" -ne 0 ]; then
-              echo "aistock-paper.service restart failed (rc=$RESTART_RC). Printing diagnostics..."
-              sudo systemctl status aistock-paper.service --no-pager || true
-              sudo journalctl -u aistock-paper.service -n 200 --no-pager || true
+            if [ "$DASHBOARD_RC" -ne 0 ]; then
+              echo "aistock-dashboard.service is not active (rc=$DASHBOARD_RC). Printing diagnostics..."
+              sudo systemctl status aistock-dashboard.service --no-pager || true
+              sudo journalctl -u aistock-dashboard.service -n 200 --no-pager || true
 
               if [ -n "$PREV_COMMIT" ]; then
                 git checkout -f "$PREV_COMMIT"
                 "$CONDA_BIN" run -p "$CONDA_ENV_PREFIX" pip install -r requirements.txt
-
-                set +e
-                sudo systemctl restart aistock-paper.service
-                ROLLBACK_RC=$?
-                set -e
-
-                if [ "$ROLLBACK_RC" -ne 0 ]; then
-                  echo "Rollback restart also failed (rc=$ROLLBACK_RC). Printing rollback diagnostics..."
-                  sudo systemctl status aistock-paper.service --no-pager || true
-                  sudo journalctl -u aistock-paper.service -n 200 --no-pager || true
-                fi
               fi
 
               exit 1
             fi
 
             set +e
-            sudo systemctl is-active --quiet aistock-paper.service
-            ACTIVE_RC=$?
+            sudo systemctl is-active --quiet aistock-trader.timer
+            TIMER_ACTIVE_RC=$?
+            sudo systemctl is-enabled --quiet aistock-trader.timer
+            TIMER_ENABLED_RC=$?
             set -e
 
-            if [ "$ACTIVE_RC" -ne 0 ]; then
-              echo "aistock-paper.service is not active after restart (rc=$ACTIVE_RC). Printing diagnostics..."
-              sudo systemctl status aistock-paper.service --no-pager || true
-              sudo journalctl -u aistock-paper.service -n 200 --no-pager || true
+            if [ "$TIMER_ACTIVE_RC" -ne 0 ] || [ "$TIMER_ENABLED_RC" -ne 0 ]; then
+              echo "aistock-trader.timer is not active/enabled (active_rc=$TIMER_ACTIVE_RC enabled_rc=$TIMER_ENABLED_RC)."
+              sudo systemctl status aistock-trader.timer --no-pager || true
+              sudo journalctl -u aistock-trader.timer -n 200 --no-pager || true
               exit 1
             fi
 
-            sudo systemctl status aistock-paper.service --no-pager
+            sudo systemctl status aistock-dashboard.service --no-pager
+            sudo systemctl status aistock-trader.timer --no-pager
+            sudo systemctl status aistock-trader.service --no-pager || true

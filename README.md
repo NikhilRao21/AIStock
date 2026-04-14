@@ -9,6 +9,8 @@ This repository now includes a runnable MVP foundation that:
 - computes conventional momentum signals from market data (yfinance)
 - fuses AI + conventional signals into trade decisions
 - executes paper trades in a synthetic broker and tracks equity
+- persists cycle-by-cycle reports and renders a live dashboard HTML
+- supports both fixed universe and rotating auto-universe scanning for broader discovery
 
 ## Current MVP Scope
 
@@ -73,6 +75,34 @@ Set API keys when required:
 
 - `AI_HACKCLUB_API_KEY` for Hack Club AI
 - `SEARCH_HACKCLUB_API_KEY` for Hack Club Search
+
+## Dashboard Output
+
+Each cycle now writes persistent artifacts to `DATA_DIR` (default `data`):
+
+- `data/latest_cycle.json` latest cycle summary
+- `data/cycle_reports.jsonl` append-only history for every cycle
+- `data/dashboard.html` dashboard page with latest positions and equity changes
+
+Serve the dashboard locally:
+
+```bash
+python scripts/serve_dashboard.py --dir data --port 8080
+```
+
+Then open `http://localhost:8080/dashboard.html`.
+
+## Universe Modes
+
+- `UNIVERSE_MODE=fixed`: uses symbols in `UNIVERSE`
+- `UNIVERSE_MODE=auto`: discovers a broad US-listed universe and scans in rotating batches each cycle
+
+Auto-universe controls:
+
+- `AUTO_UNIVERSE_MAX_SYMBOLS` total discovered symbols kept in cache
+- `AUTO_UNIVERSE_BATCH_SIZE` symbols scanned each cycle
+- `AUTO_UNIVERSE_MIN_PRICE` minimum tradable price filter
+- `AUTO_UNIVERSE_MAX_PRICE` maximum tradable price filter
 
 ## Auto Deploy On Server
 

@@ -17,6 +17,15 @@ class Settings(BaseSettings):
     search_hackclub_api_key: str | None = None
 
     universe: str = "AAPL,MSFT,GOOGL,AMZN,NVDA"
+    universe_mode: str = Field(default="fixed", description="fixed or auto")
+    auto_universe_max_symbols: int = 2000
+    auto_universe_batch_size: int = 60
+    auto_universe_min_price: float = 3.0
+    auto_universe_max_price: float = 500.0
+
+    data_dir: str = "data"
+    dashboard_history_limit: int = 200
+
     starting_cash: float = 100_000.0
     max_allocation_per_trade: float = 0.03
     stop_loss_pct: float = 0.08
