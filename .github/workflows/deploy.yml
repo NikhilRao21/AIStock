@@ -66,6 +66,11 @@ jobs:
             sudo mkdir -p "$APP_DIR/data"
 
             SERVICE_USER="${{ secrets.SERVER_USER }}"
+            SERVICE_GROUP="$(id -gn "$SERVICE_USER")"
+
+            # Ensure runtime data directory is writable by the trading/dashboard service user.
+            sudo chown -R "$SERVICE_USER:$SERVICE_GROUP" "$APP_DIR/data"
+            sudo chmod -R u+rwX "$APP_DIR/data"
 
             # One-shot trading run service; invoked by timer during market hours.
             printf '%s\n' \
@@ -123,7 +128,7 @@ jobs:
             sudo systemctl enable --now aistock-trader.timer
 
             # Fresh start on every deploy: clear persisted portfolio and cycle artifacts.
-            rm -f \
+            sudo rm -f \
               "$APP_DIR/data/broker_state.json" \
               "$APP_DIR/data/latest_cycle.json" \
               "$APP_DIR/data/cycle_reports.jsonl" \
