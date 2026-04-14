@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from json import JSONDecodeError
 
 import requests
 
@@ -26,17 +27,27 @@ class HackclubSearchNewsProvider(NewsProvider):
 
         for symbol in symbols:
             query = f"{symbol} stock news"
-            resp = requests.get(
-                settings.search_hackclub_base_url,
-                params={"q": query, "limit": per_symbol},
-                headers=headers,
-                timeout=self._timeout,
-            )
-            resp.raise_for_status()
-            payload = resp.json()
+            try:
+                resp = requests.get(
+                    settings.search_hackclub_base_url,
+                    params={"q": query, "limit": per_symbol},
+                    headers=headers,
+                    timeout=self._timeout,
+                )
+                resp.raise_for_status()
+                payload = resp.json()
+            except (requests.RequestException, JSONDecodeError, ValueError):
+                # Ignore bad upstream responses for this symbol and continue processing.
+                continue
+
             results = payload.get("results", payload if isinstance(payload, list) else [])
+            if not isinstance(results, list):
+                continue
+
             now = datetime.utcnow()
             for obj in results[:per_symbol]:
+                if not isinstance(obj, dict):
+                    continue
                 headline = str(obj.get("title") or obj.get("headline") or f"News for {symbol}")
                 source = str(obj.get("source") or obj.get("domain") or "hackclub-search")
                 summary = obj.get("snippet") or obj.get("description")

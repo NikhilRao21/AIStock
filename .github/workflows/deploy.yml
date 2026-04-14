@@ -28,6 +28,7 @@ jobs:
             APP_DIR="/opt/AIStock"
             REPO_URL="https://github.com/NikhilRao21/AIStock.git"
             CONDA_BIN="/home/opc/miniconda3/bin/conda"
+            CONDA_ENV_PREFIX="$APP_DIR/.conda-env"
 
             if [ ! -x "$CONDA_BIN" ]; then
               echo "Conda not found at $CONDA_BIN"
@@ -51,16 +52,16 @@ jobs:
             TARGET_COMMIT="$(git rev-parse origin/main)"
             git checkout -f "$TARGET_COMMIT"
 
-            if ! "$CONDA_BIN" env list | awk '{print $1}' | grep -qx aistock; then
-              "$CONDA_BIN" create -y -n aistock python=3.12 pip
+            if [ ! -x "$CONDA_ENV_PREFIX/bin/python" ]; then
+              "$CONDA_BIN" create -y -p "$CONDA_ENV_PREFIX" python=3.12 pip
             fi
 
-            "$CONDA_BIN" run -n aistock pip install --upgrade pip
-            "$CONDA_BIN" run -n aistock pip install -r requirements.txt
+            "$CONDA_BIN" run -p "$CONDA_ENV_PREFIX" pip install --upgrade pip
+            "$CONDA_BIN" run -p "$CONDA_ENV_PREFIX" pip install -r requirements.txt
 
             # Smoke tests before touching systemd so import/runtime issues are visible early.
-            "$CONDA_BIN" run -n aistock python -c "import sys; print(sys.executable)"
-            "$CONDA_BIN" run -n aistock python -c "import pkgutil; print('python-smoke-ok')"
+            "$CONDA_BIN" run -p "$CONDA_ENV_PREFIX" python -c "import sys; print(sys.executable)"
+            "$CONDA_BIN" run -p "$CONDA_ENV_PREFIX" python -c "import pkgutil; print('python-smoke-ok')"
 
             set +e
             sudo systemctl restart aistock-paper.service
@@ -74,7 +75,7 @@ jobs:
 
               if [ -n "$PREV_COMMIT" ]; then
                 git checkout -f "$PREV_COMMIT"
-                "$CONDA_BIN" run -n aistock pip install -r requirements.txt
+                "$CONDA_BIN" run -p "$CONDA_ENV_PREFIX" pip install -r requirements.txt
 
                 set +e
                 sudo systemctl restart aistock-paper.service
