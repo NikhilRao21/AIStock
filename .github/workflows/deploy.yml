@@ -40,6 +40,7 @@ jobs:
             fi
 
             cd "$APP_DIR"
+            git config --global --add safe.directory "$APP_DIR" || true
 
             PREV_COMMIT=""
             if git rev-parse --verify HEAD >/dev/null 2>&1; then
@@ -57,10 +58,19 @@ jobs:
             "$CONDA_BIN" run -n aistock pip install --upgrade pip
             "$CONDA_BIN" run -n aistock pip install -r requirements.txt
 
-            if ! sudo systemctl restart aistock-paper.service; then
-              echo "Initial restart failed. Printing service diagnostics..."
+            # Smoke tests before touching systemd so import/runtime issues are visible early.
+            "$CONDA_BIN" run -n aistock python -c "import sys; print(sys.executable)"
+            "$CONDA_BIN" run -n aistock python -c "import pkgutil; print('python-smoke-ok')"
+
+            set +e
+            sudo systemctl restart aistock-paper.service
+            RESTART_RC=$?
+            set -e
+
+            if [ "$RESTART_RC" -ne 0 ]; then
+              echo "aistock-paper.service restart failed (rc=$RESTART_RC). Printing diagnostics..."
               sudo systemctl status aistock-paper.service --no-pager || true
-              sudo journalctl -u aistock-paper.service -n 120 --no-pager || true
+              sudo journalctl -u aistock-paper.service -n 200 --no-pager || true
 
               if [ -n "$PREV_COMMIT" ]; then
                 git checkout -f "$PREV_COMMIT"
@@ -72,14 +82,25 @@ jobs:
                 set -e
 
                 if [ "$ROLLBACK_RC" -ne 0 ]; then
-                  echo "Rollback restart also failed. Printing rollback diagnostics..."
+                  echo "Rollback restart also failed (rc=$ROLLBACK_RC). Printing rollback diagnostics..."
                   sudo systemctl status aistock-paper.service --no-pager || true
-                  sudo journalctl -u aistock-paper.service -n 120 --no-pager || true
+                  sudo journalctl -u aistock-paper.service -n 200 --no-pager || true
                 fi
               fi
 
               exit 1
             fi
 
+            set +e
             sudo systemctl is-active --quiet aistock-paper.service
+            ACTIVE_RC=$?
+            set -e
+
+            if [ "$ACTIVE_RC" -ne 0 ]; then
+              echo "aistock-paper.service is not active after restart (rc=$ACTIVE_RC). Printing diagnostics..."
+              sudo systemctl status aistock-paper.service --no-pager || true
+              sudo journalctl -u aistock-paper.service -n 200 --no-pager || true
+              exit 1
+            fi
+
             sudo systemctl status aistock-paper.service --no-pager
