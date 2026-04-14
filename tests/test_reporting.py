@@ -35,11 +35,23 @@ class ReportingTests(unittest.TestCase):
                     positions=[Position(symbol="AAPL", quantity=2, avg_cost=50.0), Position(symbol="MSFT", quantity=4, avg_cost=100.0)],
                 ),
                 ai_output=[AiSignal(symbol="MSFT", action="BUY", confidence=0.95, rationale="Strong earnings momentum")],
+                ai_raw_output=[
+                    {
+                        "symbol": "MSFT",
+                        "status": "ok",
+                        "http_status": 200,
+                        "raw_response": '{"action":"BUY","confidence":0.95,"rationale":"Strong earnings momentum"}',
+                        "extracted_content": '{"action":"BUY","confidence":0.95,"rationale":"Strong earnings momentum"}',
+                        "parsed": {"action": "BUY"},
+                        "error": None,
+                    }
+                ],
                 market_prices={"AAPL": 55.0, "MSFT": 110.0},
                 previous_equity=850.0,
                 previous_positions=[Position(symbol="AAPL", quantity=2, avg_cost=50.0)],
                 news_status={"ok": False, "fallback_used": True, "error": "JSONDecodeError: bad payload", "provider": "hackclub"},
                 signal_policy={"ai_weight": 0.6, "conventional_weight": 0.4, "disabled": []},
+                debug_issues=["No fills were executed"],
                 history_limit=10,
             )
 
@@ -50,11 +62,14 @@ class ReportingTests(unittest.TestCase):
 
             latest = json.loads((data_dir / "latest_cycle.json").read_text(encoding="utf-8"))
             self.assertEqual(latest["ai_output_count"], 1)
+            self.assertEqual(latest["ai_raw_output_count"], 1)
             self.assertIn("signal_performance", latest)
             self.assertIn("symbols_scanned", latest)
 
             dashboard = (data_dir / "dashboard.html").read_text(encoding="utf-8")
             self.assertIn("AI Output From Last Cycle", dashboard)
+            self.assertIn("Raw AI Provider Output", dashboard)
+            self.assertIn("Debug Issues", dashboard)
             self.assertIn("Symbols Scanned This Cycle", dashboard)
             self.assertIn("Hidden-Gem Candidates", dashboard)
             self.assertIn("News feed failing or degraded", dashboard)

@@ -28,6 +28,17 @@ def main() -> None:
     print(f"- equity={portfolio.equity:.2f}")
     print(f"- positions={[(p.symbol, p.quantity, round(p.avg_cost, 2)) for p in portfolio.positions]}")
     print(f"- equity_delta={report.get('equity_delta')}")
+
+    print("\nDebug:")
+    issues = report.get("debug_issues", [])
+    if issues:
+        for issue in issues:
+            print(f"- issue: {issue}")
+    else:
+        print("- issue: none")
+    print(f"- ai_output_count={report.get('ai_output_count', 0)}")
+    print(f"- ai_raw_output_count={report.get('ai_raw_output_count', 0)}")
+
     print("\nDashboard files:")
     print("- data/latest_cycle.json")
     print("- data/cycle_reports.jsonl")

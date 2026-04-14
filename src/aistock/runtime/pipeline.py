@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 import json
 from pathlib import Path
+from typing import Any
 
 from aistock.broker.paper_broker import PaperBroker
 from aistock.core.config import settings
@@ -101,6 +102,37 @@ def _mark_hidden_gems(decisions: list[TradeDecision], symbols: list[str]) -> Non
             decision.hidden_gem_reason = "High-confidence BUY outside the core universe"
 
 
+def _collect_debug_issues(
+    news_count: int,
+    ai_signal_count: int,
+    ai_debug: list[dict[str, Any]],
+    decisions: list[TradeDecision],
+    fills: list,
+    news_failure: str | None,
+) -> list[str]:
+    issues: list[str] = []
+
+    if news_failure:
+        issues.append(f"News provider failure: {news_failure}")
+    if news_count == 0:
+        issues.append("No news items fetched for this cycle")
+    if ai_signal_count == 0:
+        issues.append("No AI signals returned")
+
+    ai_errors = [item for item in ai_debug if str(item.get("status", "")) == "error"]
+    if ai_errors:
+        issues.append(f"AI provider errors for {len(ai_errors)} symbol(s)")
+
+    if decisions and all(d.action == "HOLD" for d in decisions):
+        issues.append("All decisions were HOLD")
+    if decisions and all(d.quantity == 0 for d in decisions):
+        issues.append("All sized quantities were 0")
+    if not fills:
+        issues.append("No fills were executed")
+
+    return issues
+
+
 def run_one_cycle(broker: PaperBroker | None = None) -> dict:
     data_dir = Path(settings.data_dir)
     broker_state_path = data_dir / "broker_state.json"
@@ -123,7 +155,19 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
         news_fallback_used = True
         news = MockNewsProvider().fetch_news(symbols)
 
-    ai_signals = ai_provider.score_news(news)
+    try:
+        ai_signals = ai_provider.score_news(news)
+    except Exception as exc:
+        ai_signals = []
+        news_fallback_used = True
+        if news_failure is None:
+            news_failure = f"AI provider failure: {type(exc).__name__}: {exc}"
+
+    ai_raw_output: list[dict[str, Any]] = []
+    if hasattr(ai_provider, "last_debug"):
+        maybe_debug = getattr(ai_provider, "last_debug")
+        if isinstance(maybe_debug, list):
+            ai_raw_output = maybe_debug
 
     ai_by_symbol: dict[str, AiSignal] = {s.symbol: s for s in ai_signals}
     decisions: list[TradeDecision] = []
@@ -175,6 +219,14 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
     ending = broker.snapshot(prices)
 
     _mark_hidden_gems(decisions, symbols)
+    debug_issues = _collect_debug_issues(
+        news_count=len(news),
+        ai_signal_count=len(ai_signals),
+        ai_debug=ai_raw_output,
+        decisions=decisions,
+        fills=fills,
+        news_failure=news_failure,
+    )
 
     recent = read_recent_reports(data_dir, limit=1)
     previous_equity = None
@@ -188,6 +240,7 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
         fills=fills,
         portfolio=ending,
         ai_output=ai_signals,
+        ai_raw_output=ai_raw_output,
         market_prices=prices,
         previous_equity=previous_equity,
         previous_positions=snapshot.positions,
@@ -198,6 +251,7 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
             "provider": settings.news_provider,
         },
         signal_policy=signal_policy,
+        debug_issues=debug_issues,
         history_limit=settings.dashboard_history_limit,
     )
 

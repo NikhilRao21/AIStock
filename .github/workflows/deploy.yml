@@ -83,13 +83,13 @@ jobs:
               "ExecStart=$CONDA_ENV_PREFIX/bin/python $APP_DIR/scripts/run_cycle.py" \
               | sudo tee /etc/systemd/system/aistock-trader.service >/dev/null
 
-            # Run every 30 minutes during US market hours (Mon-Fri, 13:30-20:00 UTC).
+            # Run every 5 minutes during US market hours (Mon-Fri, 13:00-20:00 UTC).
             printf '%s\n' \
               '[Unit]' \
               'Description=AIStock Trader Schedule (Market Hours)' \
               '' \
               '[Timer]' \
-              'OnCalendar=Mon..Fri *-*-* 13,14,15,16,17,18,19:00,30:00 UTC' \
+              'OnCalendar=Mon..Fri *-*-* 13,14,15,16,17,18,19:00/5:00 UTC' \
               'OnCalendar=Mon..Fri *-*-* 20:00:00 UTC' \
               'Persistent=true' \
               'Unit=aistock-trader.service' \
