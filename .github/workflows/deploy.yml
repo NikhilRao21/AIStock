@@ -75,12 +75,9 @@ jobs:
               fi
             fi
 
-            # Ensure runtime data directory is writable by the trading/dashboard service user.
-            sudo chown -R "$SERVICE_USER:$SERVICE_GROUP" "$APP_DIR/data"
-            sudo chmod -R u+rwX "$APP_DIR/data"
-
-            # Fresh start on every deploy: clear everything currently under data/.
-            sudo find "$APP_DIR/data" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+            # Fresh start on every deploy: remove and recreate the entire data directory.
+            sudo rm -rf "$APP_DIR/data"
+            sudo install -d -o "$SERVICE_USER" -g "$SERVICE_GROUP" -m 775 "$APP_DIR/data"
 
             # One-shot trading run service; invoked by timer during market hours.
             printf '%s\n' \
