@@ -34,12 +34,23 @@ class ConventionalSignal:
 
 
 @dataclass(slots=True)
+class SignalSnapshot:
+    family: str
+    action: Action
+    confidence: float
+    details: str = ""
+
+
+@dataclass(slots=True)
 class TradeDecision:
     symbol: str
     action: Action
     confidence: float
     quantity: int
     reason: str
+    signals: list[SignalSnapshot] = field(default_factory=list)
+    is_hidden_gem: bool = False
+    hidden_gem_reason: str | None = None
 
 
 @dataclass(slots=True)

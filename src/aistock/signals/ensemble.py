@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from aistock.core.types import AiSignal, ConventionalSignal, TradeDecision
+from aistock.core.types import AiSignal, ConventionalSignal, SignalSnapshot, TradeDecision
 
 
 def _score(action: str, confidence: float) -> float:
@@ -31,4 +31,24 @@ def combine_signals(
         f"Conventional={conventional.action}:{conventional.confidence:.2f}, "
         f"score={total:.3f}"
     )
-    return TradeDecision(symbol=ai.symbol, action=action, confidence=confidence, quantity=0, reason=reason)
+    return TradeDecision(
+        symbol=ai.symbol,
+        action=action,
+        confidence=confidence,
+        quantity=0,
+        reason=reason,
+        signals=[
+            SignalSnapshot(
+                family="ai",
+                action=ai.action,
+                confidence=ai.confidence,
+                details=ai.rationale,
+            ),
+            SignalSnapshot(
+                family="conventional",
+                action=conventional.action,
+                confidence=conventional.confidence,
+                details=f"momentum_5d={conventional.momentum_5d:.4f}, momentum_20d={conventional.momentum_20d:.4f}",
+            ),
+        ],
+    )

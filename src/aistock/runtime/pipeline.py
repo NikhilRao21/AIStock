@@ -18,6 +18,8 @@ from aistock.runtime.universe import resolve_symbols
 from aistock.signals.conventional import conventional_signal
 from aistock.signals.ensemble import combine_signals
 
+_HIDDEN_GEM_MIN_CONFIDENCE = 0.8
+
 
 def _build_ai_provider():
     if settings.ai_provider == "hackclub":
@@ -46,19 +48,79 @@ def _save_broker_state(state_path: Path, broker: PaperBroker) -> None:
     state_path.write_text(json.dumps(broker.export_state(), indent=2), encoding="utf-8")
 
 
+def _signal_weights_from_history(history: list[dict]) -> dict[str, float]:
+    ai_weight = settings.ai_weight
+    conventional_weight = settings.conventional_weight
+    disabled: list[str] = []
+
+    latest_history = history[-1] if history else {}
+    signal_performance = latest_history.get("signal_performance", {})
+    families = signal_performance.get("families", {}) if isinstance(signal_performance, dict) else {}
+
+    for family, weight in (("ai", ai_weight), ("conventional", conventional_weight)):
+        family_summary = families.get(family, {}) if isinstance(families, dict) else {}
+        status = str(family_summary.get("status", "active"))
+        if status == "underperforming":
+            if family == "ai":
+                ai_weight = 0.0
+            else:
+                conventional_weight = 0.0
+            disabled.append(family)
+
+    if ai_weight + conventional_weight <= 0:
+        ai_weight = settings.ai_weight
+        conventional_weight = settings.conventional_weight
+        disabled = []
+
+    total = ai_weight + conventional_weight
+    if total > 0:
+        ai_weight /= total
+        conventional_weight /= total
+
+    return {
+        "ai_weight": ai_weight,
+        "conventional_weight": conventional_weight,
+        "disabled": disabled,
+    }
+
+
+def _mark_hidden_gems(decisions: list[TradeDecision], symbols: list[str]) -> None:
+    core_universe = set(settings.universe_symbols())
+    if settings.universe_mode.lower() != "auto":
+        return
+
+    for decision in decisions:
+        hidden = (
+            decision.action == "BUY"
+            and decision.confidence >= _HIDDEN_GEM_MIN_CONFIDENCE
+            and decision.symbol not in core_universe
+            and decision.symbol in symbols
+        )
+        decision.is_hidden_gem = hidden
+        if hidden:
+            decision.hidden_gem_reason = "High-confidence BUY outside the core universe"
+
+
 def run_one_cycle(broker: PaperBroker | None = None) -> dict:
     data_dir = Path(settings.data_dir)
     broker_state_path = data_dir / "broker_state.json"
     broker = broker or _load_broker_state(broker_state_path)
+
+    recent_reports = read_recent_reports(data_dir, limit=settings.dashboard_history_limit)
+    signal_policy = _signal_weights_from_history(recent_reports)
 
     ai_provider = _build_ai_provider()
     news_provider = _build_news_provider()
     market = YFinanceProvider()
 
     symbols = resolve_symbols(settings=settings, market=market, data_dir=data_dir)
+    news_failure: str | None = None
+    news_fallback_used = False
     try:
         news = news_provider.fetch_news(symbols)
-    except Exception:
+    except Exception as exc:
+        news_failure = f"{type(exc).__name__}: {exc}"
+        news_fallback_used = True
         news = MockNewsProvider().fetch_news(symbols)
 
     ai_signals = ai_provider.score_news(news)
@@ -79,8 +141,8 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
         decision = combine_signals(
             ai=ai,
             conventional=conventional,
-            ai_weight=settings.ai_weight,
-            conventional_weight=settings.conventional_weight,
+            ai_weight=signal_policy["ai_weight"],
+            conventional_weight=signal_policy["conventional_weight"],
         )
 
         prices[symbol] = px
@@ -112,6 +174,8 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
 
     ending = broker.snapshot(prices)
 
+    _mark_hidden_gems(decisions, symbols)
+
     recent = read_recent_reports(data_dir, limit=1)
     previous_equity = None
     if recent:
@@ -123,7 +187,17 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
         decisions=decisions,
         fills=fills,
         portfolio=ending,
+        ai_output=ai_signals,
+        market_prices=prices,
         previous_equity=previous_equity,
+        previous_positions=snapshot.positions,
+        news_status={
+            "ok": news_failure is None,
+            "fallback_used": news_fallback_used,
+            "error": news_failure,
+            "provider": settings.news_provider,
+        },
+        signal_policy=signal_policy,
         history_limit=settings.dashboard_history_limit,
     )
 

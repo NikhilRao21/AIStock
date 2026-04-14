@@ -16,6 +16,9 @@ def size_trade(
             confidence=decision.confidence,
             quantity=0,
             reason=decision.reason,
+            signals=list(decision.signals),
+            is_hidden_gem=decision.is_hidden_gem,
+            hidden_gem_reason=decision.hidden_gem_reason,
         )
 
     budget = cash * max_allocation_per_trade
@@ -26,4 +29,7 @@ def size_trade(
         confidence=decision.confidence,
         quantity=max(0, qty),
         reason=decision.reason,
+        signals=list(decision.signals),
+        is_hidden_gem=decision.is_hidden_gem,
+        hidden_gem_reason=decision.hidden_gem_reason,
     )
