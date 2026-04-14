@@ -10,6 +10,13 @@ from aistock.core.config import Settings
 from aistock.integrations.market.base import MarketDataProvider
 
 _NASDAQ_LIST_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqtraded.txt"
+_AUTO_FALLBACK_SYMBOLS = [
+    "JPM", "XOM", "UNH", "JNJ", "PG", "HD", "CVX", "MA", "V", "LLY",
+    "BAC", "KO", "PEP", "ABBV", "MRK", "COST", "WMT", "ADBE", "CRM", "NFLX",
+    "AMD", "INTC", "CSCO", "QCOM", "ORCL", "AVGO", "TXN", "AMAT", "NOW", "PANW",
+    "SPY", "QQQ", "IWM", "DIA", "XLF", "XLK", "XLE", "XLV", "XLI", "XLP",
+    "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "SHOP", "UBER", "PLTR",
+]
 
 
 def resolve_symbols(
@@ -24,6 +31,12 @@ def resolve_symbols(
     if not symbols:
         return settings.universe_symbols()
 
+    # Prefer scanning outside the core universe in auto mode.
+    core_universe = set(settings.universe_symbols())
+    non_core_symbols = [s for s in symbols if s not in core_universe]
+    if non_core_symbols:
+        symbols = non_core_symbols
+
     universe_state_path = data_dir / "universe_state.json"
     cursor = 0
     if universe_state_path.exists():
@@ -34,8 +47,12 @@ def resolve_symbols(
             cursor = 0
 
     batch_size = max(1, settings.auto_universe_batch_size)
-    selected = _rotate_batch(symbols, cursor, batch_size)
-    next_cursor = (cursor + batch_size) % len(symbols)
+    # Probe multiple candidate windows per cycle so a weak/invalid first batch
+    # does not immediately force a fallback to the fixed universe.
+    max_candidates = min(len(symbols), batch_size * 5)
+    selected = _rotate_batch(symbols, cursor, max_candidates)
+    selected_batch = selected[:batch_size]
+    next_cursor = (cursor + max_candidates) % len(symbols)
     universe_state_path.write_text(json.dumps({"cursor": next_cursor}, indent=2), encoding="utf-8")
 
     filtered: list[str] = []
@@ -46,8 +63,10 @@ def resolve_symbols(
             continue
         if settings.auto_universe_min_price <= px <= settings.auto_universe_max_price:
             filtered.append(symbol)
+            if len(filtered) >= batch_size:
+                break
 
-    return filtered or settings.universe_symbols()
+    return filtered or selected_batch
 
 
 def _rotate_batch(symbols: list[str], cursor: int, batch_size: int) -> list[str]:
@@ -71,11 +90,31 @@ def _load_or_refresh_universe(data_dir: Path, max_symbols: int) -> list[str]:
             if datetime.now(timezone.utc) - ts < timedelta(hours=24):
                 cached = payload.get("symbols", [])
                 if isinstance(cached, list):
-                    return [str(s).upper() for s in cached[:max_symbols]]
+                    sanitized = _sanitize_symbols([str(s).upper() for s in cached])
+                    if sanitized:
+                        return sanitized[:max_symbols]
         except (ValueError, TypeError, json.JSONDecodeError):
             pass
 
-    symbols = _fetch_us_listed_symbols()[:max_symbols]
+    try:
+        symbols = _fetch_us_listed_symbols()[:max_symbols]
+    except requests.RequestException:
+        # Use stale cache as best-effort fallback when refresh fails.
+        if cache_path.exists():
+            try:
+                payload = json.loads(cache_path.read_text(encoding="utf-8"))
+                cached = payload.get("symbols", [])
+                if isinstance(cached, list):
+                    sanitized = _sanitize_symbols([str(s).upper() for s in cached])
+                    if sanitized:
+                        return sanitized[:max_symbols]
+            except (ValueError, TypeError, json.JSONDecodeError):
+                pass
+        return _sanitize_symbols(_AUTO_FALLBACK_SYMBOLS)[:max_symbols]
+
+    if not symbols:
+        return _sanitize_symbols(_AUTO_FALLBACK_SYMBOLS)[:max_symbols]
+
     cache_path.write_text(
         json.dumps({"generated_at": datetime.now(timezone.utc).isoformat(), "symbols": symbols}, indent=2),
         encoding="utf-8",
@@ -102,11 +141,29 @@ def _fetch_us_listed_symbols() -> list[str]:
         test_issue = parts[6].strip().upper()
         if not symbol or test_issue == "Y":
             continue
+        if not symbol.isalpha() or len(symbol) < 2 or len(symbol) > 5:
+            continue
         if any(ch in symbol for ch in ("$", "^", "/")):
             continue
 
         symbols.append(symbol)
 
-    # Keep deterministic ordering while deduplicating.
-    deduped = list(dict.fromkeys(symbols))
-    return deduped
+    return _sanitize_symbols(symbols)
+
+
+def _sanitize_symbols(symbols: list[str]) -> list[str]:
+    clean: list[str] = []
+    seen: set[str] = set()
+    for raw in symbols:
+        symbol = str(raw).strip().upper()
+        if not symbol:
+            continue
+        if symbol in seen:
+            continue
+        if not symbol.isalpha() or len(symbol) < 2 or len(symbol) > 5:
+            continue
+        if any(ch in symbol for ch in ("$", "^", "/", ".")):
+            continue
+        seen.add(symbol)
+        clean.append(symbol)
+    return clean
