@@ -113,6 +113,7 @@ def write_cycle_report(
         },
         "hidden_gem_candidates": hidden_gem_candidates,
         "news_status": news_status or {"ok": True, "fallback_used": False, "error": None},
+        "news_raw_output_count": len((news_status or {}).get("raw_output", [])) if isinstance(news_status, dict) else 0,
         "ai_status": ai_status or {"ok": True, "error": None, "provider": "unknown"},
         "signal_policy": signal_policy or {"ai_weight": None, "conventional_weight": None, "disabled": []},
         "signal_performance": signal_performance,
@@ -336,6 +337,7 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
         f"<td>{escape(str(item.get('status', '')))}</td>"
         f"<td>{escape(str(item.get('http_status', '')))}</td>"
         f"<td>{escape(str(item.get('error', '') or ''))}</td>"
+        f"<td><pre>{escape(str(item.get('raw_response', '') or ''))}</pre></td>"
         "</tr>"
         for item in news_raw_output
     )
@@ -382,6 +384,7 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
       <div class=\"card\"><div class=\"label\">Symbols Scanned</div><div class=\"value\">{len(latest.get('symbols_scanned', []))}</div></div>
       <div class=\"card\"><div class=\"label\">AI Outputs</div><div class=\"value\">{len(ai_output)}</div></div>
       <div class=\"card\"><div class=\"label\">Raw AI Responses</div><div class=\"value\">{len(ai_raw_output)}</div></div>
+    <div class=\"card\"><div class=\"label\">Raw News Responses</div><div class=\"value\">{len(news_raw_output)}</div></div>
       <div class=\"card\"><div class=\"label\">Hidden Gems</div><div class=\"value\">{len(latest.get('hidden_gem_candidates', []))}</div></div>
       <div class=\"card\"><div class=\"label\">News Status</div><div class=\"value {'status-ok' if news_ok else 'status-bad'}\">{'OK' if news_ok else 'FAIL'}</div></div>
     </div>
@@ -472,8 +475,8 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
             <div class=\"card\">
                 <h3>News Provider Raw Output</h3>
                 <table>
-                    <thead><tr><th>Symbol</th><th>Status</th><th>HTTP</th><th>Error</th></tr></thead>
-                    <tbody>{news_provider_rows or '<tr><td colspan="4">No raw news output captured</td></tr>'}</tbody>
+                    <thead><tr><th>Symbol</th><th>Status</th><th>HTTP</th><th>Error</th><th>Raw Response</th></tr></thead>
+                    <tbody>{news_provider_rows or '<tr><td colspan="5">No raw news output captured</td></tr>'}</tbody>
                 </table>
             </div>
         </div>

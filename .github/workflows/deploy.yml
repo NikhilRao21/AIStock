@@ -122,6 +122,13 @@ jobs:
             sudo systemctl enable --now aistock-dashboard.service
             sudo systemctl enable --now aistock-trader.timer
 
+            # Fresh start on every deploy: clear persisted portfolio and cycle artifacts.
+            rm -f \
+              "$APP_DIR/data/broker_state.json" \
+              "$APP_DIR/data/latest_cycle.json" \
+              "$APP_DIR/data/cycle_reports.jsonl" \
+              "$APP_DIR/data/dashboard.html"
+
             # Start a one-time cycle only to verify trader service wiring after deploy.
             sudo systemctl start aistock-trader.service
 

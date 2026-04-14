@@ -54,7 +54,15 @@ class ReportingTests(unittest.TestCase):
                     "fallback_used": True,
                     "error": "JSONDecodeError: bad payload",
                     "provider": "hackclub",
-                    "raw_output": [{"symbol": "MSFT", "status": "error", "http_status": 500, "error": "boom"}],
+                    "raw_output": [
+                        {
+                            "symbol": "MSFT",
+                            "status": "error",
+                            "http_status": 500,
+                            "error": "boom",
+                            "raw_response": '{"error":"boom"}',
+                        }
+                    ],
                 },
                 ai_status={"ok": False, "error": "HTTP 401", "provider": "hackclub"},
                 signal_policy={"ai_weight": 0.6, "conventional_weight": 0.4, "disabled": []},
@@ -70,6 +78,7 @@ class ReportingTests(unittest.TestCase):
             latest = json.loads((data_dir / "latest_cycle.json").read_text(encoding="utf-8"))
             self.assertEqual(latest["ai_output_count"], 1)
             self.assertEqual(latest["ai_raw_output_count"], 1)
+            self.assertEqual(latest["news_raw_output_count"], 1)
             self.assertEqual(latest["ai_status"]["ok"], False)
             self.assertIn("signal_performance", latest)
             self.assertIn("symbols_scanned", latest)
@@ -82,6 +91,8 @@ class ReportingTests(unittest.TestCase):
             self.assertIn("Hidden-Gem Candidates", dashboard)
             self.assertIn("News feed failing or degraded", dashboard)
             self.assertIn("Provider Diagnostics", dashboard)
+            self.assertIn("Raw News Responses", dashboard)
+            self.assertIn("{&quot;error&quot;:&quot;boom&quot;}", dashboard)
 
 
 if __name__ == "__main__":

@@ -64,6 +64,12 @@ export PYTHONPATH=src
 python scripts/run_cycle.py
 ```
 
+To wipe local portfolio/history artifacts and start with a fresh portfolio before running:
+
+```bash
+python scripts/run_cycle.py --fresh-start
+```
+
 ## Provider Modes
 
 Use these in `.env`:
@@ -101,7 +107,7 @@ Then open `http://localhost:8080/dashboard.html`.
 ## Universe Modes
 
 - `UNIVERSE_MODE=fixed`: uses symbols in `UNIVERSE`
-- `UNIVERSE_MODE=auto`: discovers a broad US-listed universe and scans in rotating batches each cycle
+- `UNIVERSE_MODE=auto`: discovers a broad US-listed universe and scans in rotating batches each cycle (default in `.env.example`)
 
 Auto-universe controls:
 

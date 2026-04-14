@@ -1,9 +1,28 @@
 from __future__ import annotations
 
+import argparse
+
 from aistock.runtime.pipeline import run_one_cycle
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Run one AIStock cycle")
+    parser.add_argument(
+        "--fresh-start",
+        action="store_true",
+        help="Reset local portfolio/history artifacts before running the cycle",
+    )
+    args = parser.parse_args()
+
+    if args.fresh_start:
+        from pathlib import Path
+
+        data_dir = Path("data")
+        for p in ("broker_state.json", "latest_cycle.json", "cycle_reports.jsonl", "dashboard.html"):
+            target = data_dir / p
+            if target.exists():
+                target.unlink()
+
     result = run_one_cycle()
     portfolio = result["portfolio"]
     report = result.get("cycle_report", {})
@@ -38,6 +57,15 @@ def main() -> None:
         print("- issue: none")
     print(f"- ai_output_count={report.get('ai_output_count', 0)}")
     print(f"- ai_raw_output_count={report.get('ai_raw_output_count', 0)}")
+    print(f"- news_raw_output_count={report.get('news_raw_output_count', 0)}")
+    news_raw_output = report.get("news_status", {}).get("raw_output", [])
+    if news_raw_output:
+        print("- news_raw_output_sample:")
+        for item in news_raw_output[:3]:
+            print(
+                f"  - {item.get('symbol', '')}: status={item.get('status', '')} "
+                f"http={item.get('http_status', '')} error={item.get('error', '')}"
+            )
 
     print("\nDashboard files:")
     print("- data/latest_cycle.json")

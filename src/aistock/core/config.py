@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     search_hackclub_max_retries: int = 2
 
     universe: str = "AAPL,MSFT,GOOGL,AMZN,NVDA"
-    universe_mode: str = Field(default="fixed", description="fixed or auto")
+    universe_mode: str = Field(default="auto", description="fixed or auto")
     auto_universe_max_symbols: int = 2000
     auto_universe_batch_size: int = 60
     auto_universe_min_price: float = 3.0
