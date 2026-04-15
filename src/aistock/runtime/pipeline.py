@@ -15,6 +15,7 @@ from aistock.integrations.ai.mock import MockAiProvider
 from aistock.integrations.market.yfinance_provider import YFinanceProvider
 from aistock.integrations.news.hackclub import HackclubSearchNewsProvider
 from aistock.integrations.news.mock import MockNewsProvider
+from aistock.integrations.news.rss_provider import RSSNewsProvider
 from aistock.risk.engine import size_trade
 from aistock.runtime.reporting import read_recent_reports, write_cycle_report
 from aistock.runtime.universe import resolve_symbols
@@ -95,8 +96,11 @@ def _build_ai_provider():
 
 
 def _build_news_provider():
-    if settings.news_provider == "hackclub":
+    provider = (settings.news_provider or "").lower()
+    if provider == "hackclub":
         return HackclubSearchNewsProvider()
+    if provider == "rss":
+        return RSSNewsProvider()
     return MockNewsProvider()
 
 

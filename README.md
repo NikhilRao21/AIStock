@@ -72,10 +72,11 @@ python scripts/run_cycle.py --fresh-start
 
 ## Provider Modes
 
-Use these in `.env`:
+Use these in `.env` to switch provider behavior:
 
 - `AI_PROVIDER=mock` and `NEWS_PROVIDER=mock` for deterministic local testing
 - `AI_PROVIDER=hackclub` and `NEWS_PROVIDER=hackclub` to use Hack Club endpoints
+- `NEWS_PROVIDER=rss` to use the on-device RSS/Atom feed provider (no API keys required)
 
 Set API keys when required:
 
@@ -87,6 +88,17 @@ For Hack Club API compatibility, keep these endpoint defaults unless the upstrea
 - `AI_HACKCLUB_ENDPOINT=/proxy/v1/chat/completions`
 - `AI_HACKCLUB_MODEL=gpt-5-mini`
 - `SEARCH_HACKCLUB_ENDPOINT=/res/v1/news/search`
+
+RSS provider notes:
+
+- Feeds are configured in `data/news_sources.json` (JSON array with `url`, `domain`, and `poll_interval_seconds`).
+- Run a single-pass fetch and update the local cache with:
+
+```bash
+python scripts/fetch_news.py
+```
+
+- Use `NEWS_PROVIDER=rss` for production or local setups where you prefer free, cached RSS ingestion instead of API-backed search providers.
 
 ## Dashboard Output
 

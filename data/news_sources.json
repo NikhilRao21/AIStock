@@ -1,0 +1,12 @@
+[
+  {
+    "url": "https://feeds.reuters.com/reuters/businessNews",
+    "domain": "reuters.com",
+    "poll_interval_seconds": 1800
+  },
+  {
+    "url": "https://www.marketwatch.com/rss/topstories",
+    "domain": "marketwatch.com",
+    "poll_interval_seconds": 1800
+  }
+]
