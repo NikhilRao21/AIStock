@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from aistock.core.config import settings
 from aistock.core.types import SignalSnapshot, TradeDecision
@@ -147,11 +148,10 @@ class SignalPolicyTests(unittest.TestCase):
         self.assertIn("All sized quantities were 0 (non_buy_action=1)", issues)
 
     def test_buy_quality_guard_rejects_negative_expectancy_buy(self) -> None:
-        original_stop_loss = settings.stop_loss_pct
-        original_take_profit = settings.take_profit_pct
-        try:
-            settings.stop_loss_pct = 0.08
-            settings.take_profit_pct = 0.02
+        with (
+            patch.object(settings, "stop_loss_pct", 0.08),
+            patch.object(settings, "take_profit_pct", 0.02),
+        ):
             guarded = _apply_buy_quality_guard(
                 TradeDecision(
                     symbol="AAPL",
@@ -163,9 +163,6 @@ class SignalPolicyTests(unittest.TestCase):
                 ),
                 fee_bps=5.0,
             )
-        finally:
-            settings.stop_loss_pct = original_stop_loss
-            settings.take_profit_pct = original_take_profit
 
         self.assertEqual(guarded.action, "HOLD")
         self.assertEqual(guarded.quantity, 0.0)

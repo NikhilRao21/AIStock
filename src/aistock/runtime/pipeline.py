@@ -268,9 +268,9 @@ def _expected_buy_edge(
     fee_bps: float,
 ) -> float:
     win_probability = min(1.0, max(0.0, confidence))
-    tp = max(0.0, float(take_profit_pct))
-    sl = max(0.0, float(stop_loss_pct))
-    round_trip_fee_drag = max(0.0, float(fee_bps)) * 2.0 / 10_000.0
+    tp = max(0.0, take_profit_pct)
+    sl = max(0.0, stop_loss_pct)
+    round_trip_fee_drag = max(0.0, fee_bps) * 2.0 / 10_000.0
     return (win_probability * tp) - ((1.0 - win_probability) * sl) - round_trip_fee_drag
 
 
@@ -286,13 +286,20 @@ def _apply_buy_quality_guard(decision: TradeDecision, fee_bps: float) -> TradeDe
     if edge > 0:
         return decision
 
-    decision.action = "HOLD"
-    decision.quantity = 0.0
-    decision.reason = (
-        f"Rejected BUY: negative expectancy "
+    guarded_reason = (
+        "Rejected BUY: negative expectancy "
         f"(edge={edge:.4f}, tp={settings.take_profit_pct:.4f}, sl={settings.stop_loss_pct:.4f})"
     )
-    return decision
+    return TradeDecision(
+        symbol=decision.symbol,
+        action="HOLD",
+        confidence=decision.confidence,
+        quantity=0.0,
+        reason=guarded_reason,
+        signals=list(decision.signals),
+        is_hidden_gem=decision.is_hidden_gem,
+        hidden_gem_reason=decision.hidden_gem_reason,
+    )
 
 
 def run_one_cycle(broker: PaperBroker | None = None) -> dict:
