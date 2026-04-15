@@ -16,7 +16,7 @@ This repository now includes a runnable MVP foundation that:
 
 - Asset class: US equities only
 - Execution: synthetic money only
-- Risk baseline: 3% max allocation per trade, 8% stop-loss configured
+- Risk baseline: 3% max allocation per trade, 3% stop-loss, 6% take-profit (2:1 reward:risk)
 - Fidelity: deferred for now; architecture is adapter-ready for future broker integration
 
 ## Project Layout
