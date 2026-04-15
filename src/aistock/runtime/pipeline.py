@@ -313,6 +313,25 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
             conventional_weight=signal_policy["conventional_weight"],
         )
 
+        # Enforce stop-loss / take-profit for held positions
+        try:
+            holding = getattr(broker, "_positions", {}).get(symbol)
+            if holding and getattr(holding, "quantity", 0) > 0:
+                avg_cost = float(getattr(holding, "avg_cost", 0.0) or 0.0)
+                if avg_cost > 0:
+                    unrealized_pct = (px - avg_cost) / avg_cost
+                    if unrealized_pct <= -settings.stop_loss_pct:
+                        decision.action = "SELL"
+                        decision.reason = f"stop_loss triggered ({unrealized_pct:.3f})"
+                        decision.confidence = max(decision.confidence, 0.9)
+                    elif unrealized_pct >= settings.take_profit_pct:
+                        decision.action = "SELL"
+                        decision.reason = f"take_profit triggered ({unrealized_pct:.3f})"
+                        decision.confidence = max(decision.confidence, 0.75)
+        except Exception:
+            # best-effort; don't fail the cycle on stop-loss checks
+            pass
+
         prices[symbol] = px
         pre_size_cash = broker.cash
         sized = size_trade(
@@ -439,6 +458,7 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
             "raw_output": news_raw_output,
             "error_counts": news_error_counts,
         },
+        news_items=news,
         ai_status={
             "ok": ai_failure is None,
             "error": ai_failure,

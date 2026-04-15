@@ -48,10 +48,10 @@ def combine_signals(
                 family="conventional",
                 action=conventional.action,
                 confidence=conventional.confidence,
-                details={
+                details=(conventional.details if getattr(conventional, "details", None) is not None else {
                     "momentum_5d": round(conventional.momentum_5d, 6),
                     "momentum_20d": round(conventional.momentum_20d, 6),
-                },
+                }),
             ),
         ],
     )

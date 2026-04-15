@@ -1,0 +1,187 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AIStock Dashboard</title>
+  <style>
+        :root { --bg:#071029; --card:#071025; --text:#dfeefe; --muted:#9ca3af; --ok:#22c55e; --bad:#ef4444; --accent:#60a5fa; --glass: rgba(255,255,255,0.03); }
+        body { margin:0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; background: linear-gradient(180deg,#041125 0%,#021021 100%); color:var(--text); -webkit-font-smoothing:antialiased; }
+        .wrap { max-width:1200px; margin: 24px auto; padding: 24px; }
+        .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(260px,1fr)); gap:16px; align-items:start; }
+        .card { background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border:1px solid rgba(255,255,255,0.03); border-radius:12px; padding:16px; box-shadow:0 8px 30px rgba(2,6,23,0.6); }
+        .card-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; }
+        .label { color:var(--muted); font-size:12px; margin:0; }
+        .value { font-size:20px; font-weight:700; margin:0; }
+        .status-ok { color:var(--ok); background: rgba(34,197,94,0.08); padding:4px 8px; border-radius:999px; font-weight:600; border:1px solid rgba(34,197,94,0.12); display:inline-block; }
+        .status-bad { color:var(--bad); background: rgba(239,68,68,0.06); padding:4px 8px; border-radius:999px; font-weight:600; border:1px solid rgba(239,68,68,0.12); display:inline-block; }
+        .card table { width:100%; border-collapse: collapse; margin-top:8px; }
+        th, td { border-bottom:1px solid rgba(255,255,255,0.04); text-align:left; padding:10px; font-size:13px; vertical-align: top; }
+        th { color:var(--accent); font-weight:700; position:sticky; top:0; background: linear-gradient(180deg, rgba(0,0,0,0.04), rgba(0,0,0,0.02)); }
+        ul { margin: 8px 0 0 18px; }
+        pre { margin:0; white-space: pre-wrap; max-height:280px; overflow:auto; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace; background: rgba(0,0,0,0.04); padding:8px; border-radius:8px; }
+        .badge { display:inline-block; padding:4px 8px; border-radius:999px; font-size:12px; background: rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.03); }
+        .symbols-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(90px,1fr)); gap:8px; align-items:start; }
+        .pnl-positive { color:var(--ok); font-weight:700; }
+        .pnl-negative { color:var(--bad); font-weight:700; }
+        .small { font-size:12px; color:var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>AIStock Cycle Dashboard</h1>
+    <p>Updated: Apr 15, 2026 03:02 PM EDT</p>
+
+    <div class="grid">
+      <div class="card"><div class="label">Portfolio Equity</div><div class="value">$99972.49</div></div>
+      <div class="card"><div class="label">Cash</div><div class="value">$44950.83</div></div>
+    <div class="card"><div class="label">Equity Change</div><div class="value">None</div></div>
+    <div class="card"><div class="label">Net Profit</div><div class="value">$-0.0 (-0.0%</div></div>
+      <div class="card"><div class="label">Symbols Scanned</div><div class="value">38</div></div>
+      <div class="card"><div class="label">AI Outputs</div><div class="value">0</div></div>
+      <div class="card"><div class="label">Raw AI Responses</div><div class="value">1</div></div>
+    <div class="card"><div class="label">Raw News Responses</div><div class="value">38</div></div>
+      <div class="card"><div class="label">Hidden Gems</div><div class="value">0</div></div>
+      <div class="card"><div class="label">News Status</div><div class="value status-ok">OK</div></div>
+        </div>
+
+        <h2>Top News</h2>
+        <div class="card">
+            <ul><li class="small">No recent news items matched this cycle</li></ul>
+        </div>
+
+        <h2>Debug Issues</h2>
+        <div class="card">
+            <ul><li>No news items fetched for this cycle</li><li>No AI signals returned (AI input had no news items)</li><li>News provider errors for 38 symbol(s): auth_error=38</li><li>AI provider errors for 1 symbol(s)</li></ul>
+        </div>
+
+    <h2>Symbols Scanned This Cycle</h2>
+    <div class="card"><div class="symbols-grid"><div class='badge'>JPM</div><div class='badge'>XOM</div><div class='badge'>UNH</div><div class='badge'>JNJ</div><div class='badge'>PG</div><div class='badge'>HD</div><div class='badge'>CVX</div><div class='badge'>BAC</div><div class='badge'>KO</div><div class='badge'>PEP</div><div class='badge'>ABBV</div><div class='badge'>MRK</div><div class='badge'>WMT</div><div class='badge'>ADBE</div><div class='badge'>CRM</div><div class='badge'>NFLX</div><div class='badge'>AMD</div><div class='badge'>INTC</div><div class='badge'>CSCO</div><div class='badge'>QCOM</div><div class='badge'>ORCL</div><div class='badge'>AVGO</div><div class='badge'>TXN</div><div class='badge'>AMAT</div><div class='badge'>NOW</div><div class='badge'>PANW</div><div class='badge'>IWM</div><div class='badge'>DIA</div><div class='badge'>XLF</div><div class='badge'>XLK</div><div class='badge'>XLE</div><div class='badge'>XLV</div><div class='badge'>XLI</div><div class='badge'>XLP</div><div class='badge'>TSLA</div><div class='badge'>SHOP</div><div class='badge'>UBER</div><div class='badge'>PLTR</div></div></div>
+
+    <h2>Current Positions</h2>
+    <div class="card">
+      <table>
+        <thead><tr><th>Symbol</th><th>Qty</th><th>Avg Cost</th><th>Price</th><th>P/L</th><th>P/L %</th></tr></thead>
+        <tbody><tr><td>JPM</td><td>9</td><td>$305.87</td><td>$305.87</td><td class="pnl-positive">$0.0</td><td class="pnl-positive">0.0%</td></tr><tr><td>UNH</td><td>9</td><td>$314.63</td><td>$314.63</td><td class="pnl-positive">$0.0</td><td class="pnl-positive">0.0%</td></tr><tr><td>HD</td><td>8</td><td>$338.165</td><td>$338.165</td><td class="pnl-positive">$0.0</td><td class="pnl-positive">0.0%</td></tr><tr><td>BAC</td><td>55</td><td>$54.395</td><td>$54.395</td><td class="pnl-positive">$0.0</td><td class="pnl-positive">0.0%</td></tr><tr><td>NFLX</td><td>28</td><td>$107.06</td><td>$107.06</td><td class="pnl-positive">$0.0</td><td class="pnl-positive">0.0%</td></tr><tr><td>AMD</td><td>11</td><td>$255.32</td><td>$255.32</td><td class="pnl-positive">$0.0</td><td class="pnl-positive">0.0%</td></tr><tr><td>INTC</td><td>46</td><td>$64.495</td><td>$64.495</td><td class="pnl-positive">$0.0</td><td class="pnl-positive">0.0%</td></tr><tr><td>CSCO</td><td>36</td><td>$82.42</td><td>$82.42</td><td class="pnl-positive">$0.0</td><td class="pnl-positive">0.0%</td></tr><tr><td>QCOM</td><td>22</td><td>$133.32</td><td>$133.32</td><td class="pnl-positive">$0.0</td><td class="pnl-positive">0.0%</td></tr><tr><td>ORCL</td><td>17</td><td>$170.48</td><td>$170.48</td><td class="pnl-positive">$0.0</td><td class="pnl-positive">0.0%</td></tr><tr><td>AVGO</td><td>7</td><td>$393.645</td><td>$393.645</td><td class="pnl-positive">$0.0</td><td class="pnl-positive">0.0%</td></tr><tr><td>TXN</td><td>14</td><td>$213.9</td><td>$213.9</td><td class="pnl-positive">$0.0</td><td class="pnl-positive">0.0%</td></tr><tr><td>AMAT</td><td>7</td><td>$386.68</td><td>$386.68</td><td class="pnl-positive">$0.0</td><td class="pnl-positive">0.0%</td></tr><tr><td>IWM</td><td>11</td><td>$269.01</td><td>$269.01</td><td class="pnl-positive">$0.0</td><td class="pnl-positive">0.0%</td></tr><tr><td>DIA</td><td>6</td><td>$484.73</td><td>$484.73</td><td class="pnl-positive">$0.0</td><td class="pnl-positive">0.0%</td></tr><tr><td>XLF</td><td>57</td><td>$52.31</td><td>$52.31</td><td class="pnl-positive">$0.0</td><td class="pnl-positive">0.0%</td></tr><tr><td>XLK</td><td>20</td><td>$149.66</td><td>$149.66</td><td class="pnl-positive">$0.0</td><td class="pnl-positive">0.0%</td></tr><tr><td>XLI</td><td>17</td><td>$171.185</td><td>$171.185</td><td class="pnl-positive">$0.0</td><td class="pnl-positive">0.0%</td></tr><tr><td>UBER</td><td>38</td><td>$77.88</td><td>$77.88</td><td class="pnl-positive">$0.0</td><td class="pnl-positive">0.0%</td></tr></tbody>
+      </table>
+    </div>
+
+    <h2>New Buys vs Carried Positions</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>New Buys</h3>
+        <table><thead><tr><th>Symbol</th><th>Qty</th><th>Avg Cost</th></tr></thead><tbody><tr><td>JPM</td><td>9</td><td>$305.87</td></tr><tr><td>UNH</td><td>9</td><td>$314.63</td></tr><tr><td>HD</td><td>8</td><td>$338.165</td></tr><tr><td>BAC</td><td>55</td><td>$54.395</td></tr><tr><td>NFLX</td><td>28</td><td>$107.06</td></tr><tr><td>AMD</td><td>11</td><td>$255.32</td></tr><tr><td>INTC</td><td>46</td><td>$64.495</td></tr><tr><td>CSCO</td><td>36</td><td>$82.42</td></tr><tr><td>QCOM</td><td>22</td><td>$133.32</td></tr><tr><td>ORCL</td><td>17</td><td>$170.48</td></tr><tr><td>AVGO</td><td>7</td><td>$393.645</td></tr><tr><td>TXN</td><td>14</td><td>$213.9</td></tr><tr><td>AMAT</td><td>7</td><td>$386.68</td></tr><tr><td>IWM</td><td>11</td><td>$269.01</td></tr><tr><td>DIA</td><td>6</td><td>$484.73</td></tr><tr><td>XLF</td><td>57</td><td>$52.31</td></tr><tr><td>XLK</td><td>20</td><td>$149.66</td></tr><tr><td>XLI</td><td>17</td><td>$171.185</td></tr><tr><td>UBER</td><td>38</td><td>$77.88</td></tr></tbody></table>
+      </div>
+      <div class="card">
+        <h3>Carried Positions</h3>
+        <table><thead><tr><th>Symbol</th><th>Qty</th><th>Avg Cost</th></tr></thead><tbody><tr><td colspan="3">No carried positions</td></tr></tbody></table>
+      </div>
+    </div>
+
+    <h2>Hidden-Gem Candidates</h2>
+    <div class="card">
+      <table>
+        <thead><tr><th>Symbol</th><th>Confidence</th><th>Reason</th></tr></thead>
+        <tbody><tr><td colspan="3">No hidden gems this cycle</td></tr></tbody>
+      </table>
+    </div>
+
+    <h2>AI Output From Last Cycle</h2>
+    <div class="card">
+      <table>
+        <thead><tr><th>Symbol</th><th>Action</th><th>Confidence</th><th>Rationale</th></tr></thead>
+        <tbody><tr><td colspan="4">No AI outputs were produced</td></tr></tbody>
+      </table>
+    </div>
+
+        <h2>Raw AI Provider Output</h2>
+        <div class="card">
+            <details>
+                <summary>Raw AI Provider Output (click to expand)</summary>
+                <table>
+                    <thead><tr><th>Symbol</th><th>Status</th><th>HTTP</th><th>Error</th><th>Raw Response</th></tr></thead>
+                    <tbody><tr><td>*</td><td>empty_input</td><td>None</td><td>No news items were provided to AI provider</td><td><pre></pre></td></tr></tbody>
+                </table>
+            </details>
+        </div>
+
+        <h2>Purchase Log</h2>
+        <div class="card">
+            <table>
+                <thead><tr><th>Time</th><th>Symbol</th><th>Qty</th><th>Price</th><th>Fee</th><th>Equity</th></tr></thead>
+                <tbody><tr><td>Apr 15, 2026 03:02 PM EDT</td><td>JPM</td><td>9</td><td>$305.87</td><td>$1.3764</td><td>$99972.49</td></tr><tr><td>Apr 15, 2026 03:02 PM EDT</td><td>UNH</td><td>9</td><td>$314.63</td><td>$1.4158</td><td>$99972.49</td></tr><tr><td>Apr 15, 2026 03:02 PM EDT</td><td>HD</td><td>8</td><td>$338.165</td><td>$1.3527</td><td>$99972.49</td></tr><tr><td>Apr 15, 2026 03:02 PM EDT</td><td>BAC</td><td>55</td><td>$54.395</td><td>$1.4959</td><td>$99972.49</td></tr><tr><td>Apr 15, 2026 03:02 PM EDT</td><td>NFLX</td><td>28</td><td>$107.06</td><td>$1.4988</td><td>$99972.49</td></tr><tr><td>Apr 15, 2026 03:02 PM EDT</td><td>AMD</td><td>11</td><td>$255.32</td><td>$1.4043</td><td>$99972.49</td></tr><tr><td>Apr 15, 2026 03:02 PM EDT</td><td>INTC</td><td>46</td><td>$64.495</td><td>$1.4834</td><td>$99972.49</td></tr><tr><td>Apr 15, 2026 03:02 PM EDT</td><td>CSCO</td><td>36</td><td>$82.42</td><td>$1.4836</td><td>$99972.49</td></tr><tr><td>Apr 15, 2026 03:02 PM EDT</td><td>QCOM</td><td>22</td><td>$133.32</td><td>$1.4665</td><td>$99972.49</td></tr><tr><td>Apr 15, 2026 03:02 PM EDT</td><td>ORCL</td><td>17</td><td>$170.48</td><td>$1.4491</td><td>$99972.49</td></tr><tr><td>Apr 15, 2026 03:02 PM EDT</td><td>AVGO</td><td>7</td><td>$393.645</td><td>$1.3778</td><td>$99972.49</td></tr><tr><td>Apr 15, 2026 03:02 PM EDT</td><td>TXN</td><td>14</td><td>$213.9</td><td>$1.4973</td><td>$99972.49</td></tr><tr><td>Apr 15, 2026 03:02 PM EDT</td><td>AMAT</td><td>7</td><td>$386.68</td><td>$1.3534</td><td>$99972.49</td></tr><tr><td>Apr 15, 2026 03:02 PM EDT</td><td>IWM</td><td>11</td><td>$269.01</td><td>$1.4796</td><td>$99972.49</td></tr><tr><td>Apr 15, 2026 03:02 PM EDT</td><td>DIA</td><td>6</td><td>$484.73</td><td>$1.4542</td><td>$99972.49</td></tr><tr><td>Apr 15, 2026 03:02 PM EDT</td><td>XLF</td><td>57</td><td>$52.31</td><td>$1.4908</td><td>$99972.49</td></tr><tr><td>Apr 15, 2026 03:02 PM EDT</td><td>XLK</td><td>20</td><td>$149.66</td><td>$1.4966</td><td>$99972.49</td></tr><tr><td>Apr 15, 2026 03:02 PM EDT</td><td>XLI</td><td>17</td><td>$171.185</td><td>$1.4551</td><td>$99972.49</td></tr><tr><td>Apr 15, 2026 03:02 PM EDT</td><td>UBER</td><td>38</td><td>$77.88</td><td>$1.4797</td><td>$99972.49</td></tr></tbody>
+            </table>
+        </div>
+
+    <h2>Signal Performance</h2>
+    <div class="card">
+      <table>
+        <thead><tr><th>Family</th><th>Trades</th><th>Win Rate</th><th>Avg Return</th><th>Avg Confidence</th><th>Status</th></tr></thead>
+        <tbody><tr><td colspan="6">No signal history yet</td></tr></tbody>
+      </table>
+      <h3>Underperformers</h3>
+      <table>
+        <thead><tr><th>Family</th><th>Trades</th><th>Win Rate</th><th>Avg Return</th></tr></thead>
+        <tbody><tr><td colspan="4">No signals are underperforming</td></tr></tbody>
+      </table>
+    </div>
+
+    <h2>Signal Policy Used for Next Cycle</h2>
+    <div class="card"><ul><li>ai_weight: 0.6</li><li>conventional_weight: 0.4</li></ul></div>
+
+    <h2>News Health</h2>
+    <div class="card">
+      <p class="status-ok">News feed healthy</p>
+      <p><strong>Fallback used:</strong> False</p>
+            <p><strong>Cache fallback used:</strong> False</p>
+      <p><strong>Error:</strong> None</p>
+            <p><strong>Error Counts:</strong></p>
+            <ul><li>auth_error: 38</li></ul>
+    </div>
+
+        <h2>Execution Diagnostics</h2>
+        <div class="grid">
+            <div class="card">
+                <p><strong>Executable orders:</strong> 19</p>
+                <p><strong>Zero Quantity Reasons:</strong></p>
+                <ul><li>non_buy_action: 19</li></ul>
+            </div>
+            <div class="card">
+                <h3>Failed Orders</h3>
+                <table>
+                    <thead><tr><th>Symbol</th><th>Action</th><th>Qty</th><th>Reason</th></tr></thead>
+                    <tbody><tr><td colspan="4">No failed executable orders</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+
+        <h2>Provider Diagnostics</h2>
+        <div class="grid">
+            <div class="card">
+                <h3>AI Provider</h3>
+                <p><strong>Provider:</strong> hackclub</p>
+                <p class="status-ok">Healthy</p>
+                <p><strong>Error:</strong> None</p>
+            </div>
+                        <div class="card"> 
+                                <h3>News Provider Raw Output</h3>
+                                <details>
+                                    <summary>Raw News Provider Output (click to expand)</summary>
+                                    <table>
+                                        <thead><tr><th>Symbol</th><th>Status</th><th>HTTP</th><th>Error</th><th>Raw Response</th></tr></thead>
+                                        <tbody><tr><td>JPM</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>XOM</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>UNH</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>JNJ</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>PG</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>HD</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>CVX</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>BAC</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>KO</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>PEP</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>ABBV</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>MRK</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>WMT</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>ADBE</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>CRM</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>NFLX</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>AMD</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>INTC</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>CSCO</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>QCOM</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>ORCL</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>AVGO</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>TXN</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>AMAT</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>NOW</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>PANW</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>IWM</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>DIA</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>XLF</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>XLK</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>XLE</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>XLV</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>XLI</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>XLP</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>TSLA</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>SHOP</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>UBER</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr><tr><td>PLTR</td><td>auth_error</td><td>401</td><td>HTTP 401: authorization failed</td><td><pre>Authentication required</pre></td></tr></tbody>
+                                    </table>
+                                </details>
+                        </div>
+        </div>
+
+    <h2>Recent Cycles</h2>
+    <div class="card">
+      <table>
+        <thead><tr><th>Timestamp</th><th>Equity</th><th>Delta</th><th>Fills</th><th>Hidden Gems</th><th>News</th></tr></thead>
+        <tbody><tr><td>Apr 15, 2026 03:02 PM EDT</td><td>99972.49</td><td>None</td><td>19</td><td>0</td><td>ok</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

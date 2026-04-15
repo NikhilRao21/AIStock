@@ -1,6 +1,11 @@
 {
   "https://feeds.reuters.com/reuters/businessNews": {},
   "https://www.marketwatch.com/rss/topstories": {
-    "etag": "W/\"2093-YciVNwLSdcpbmlkU4TUZRV+mrd8\""
+    "etag": "W/\"223b-5+ZESi9ONmIt0bGocRoEQWg/igI\""
+  },
+  "https://www.cnbc.com/id/100003114/device/rss/rss.xml": {},
+  "https://finance.yahoo.com/rss/topstories": {
+    "etag": "\"82e10c776a45512189d59820a9dc6ebf\"",
+    "last_modified": "Wed, 15 Apr 2026 19:01:04 GMT"
   }
 }

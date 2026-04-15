@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     starting_cash: float = 100_000.0
     max_allocation_per_trade: float = 0.03
     stop_loss_pct: float = 0.08
+    take_profit_pct: float = 0.02
 
     ai_weight: float = 0.60
     conventional_weight: float = 0.40

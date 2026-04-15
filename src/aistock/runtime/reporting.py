@@ -27,13 +27,17 @@ def write_cycle_report(
     previous_equity: float | None,
     previous_positions: list[Position],
     news_status: dict[str, Any] | None,
-    ai_status: dict[str, Any] | None,
-    execution_diagnostics: dict[str, Any] | None,
-    signal_policy: dict[str, Any] | None,
-    debug_issues: list[str],
-    history_limit: int,
+    news_items: list | None = None,
+    ai_status: dict[str, Any] | None = None,
+    execution_diagnostics: dict[str, Any] | None = None,
+    signal_policy: dict[str, Any] | None = None,
+    debug_issues: list[str] | None = None,
+    history_limit: int = 50,
 ) -> dict:
     data_dir.mkdir(parents=True, exist_ok=True)
+
+    if debug_issues is None:
+        debug_issues = []
 
     # Persist program start baseline if missing. This is the baseline equity
     # used to compute running net profit across cycles stored in `data/`.
@@ -204,6 +208,17 @@ def write_cycle_report(
                 "hidden_gem_reason": d.hidden_gem_reason,
             }
             for d in decisions
+        ],
+        "news_items": [
+            {
+                "symbol": item.symbol,
+                "headline": item.headline,
+                "source": item.source,
+                "summary": item.summary,
+                "published_at": item.published_at.isoformat(),
+                "url": getattr(item, "url", None),
+            }
+            for item in (news_items or [])
         ],
     }
 
@@ -519,6 +534,13 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
         if value not in (None, [], {})
     )
 
+    # top news items (from news provider / cache)
+    news_items = latest.get("news_items", [])
+    news_items_rows = "".join(
+        f"<li><strong>{escape(str(item.get('symbol','')))}</strong>: {escape(str(item.get('headline','')))} <span class='small'>({escape(str(item.get('source','')) )})</span></li>"
+        for item in (news_items or [])[:50]
+    )
+
     html = f"""<!doctype html>
 <html>
 <head>
@@ -564,12 +586,17 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
     <div class=\"card\"><div class=\"label\">Raw News Responses</div><div class=\"value\">{len(news_raw_output)}</div></div>
       <div class=\"card\"><div class=\"label\">Hidden Gems</div><div class=\"value\">{len(latest.get('hidden_gem_candidates', []))}</div></div>
       <div class=\"card\"><div class=\"label\">News Status</div><div class=\"value {'status-ok' if news_ok else 'status-bad'}\">{'OK' if news_ok else 'FAIL'}</div></div>
-    </div>
+        </div>
 
-    <h2>Debug Issues</h2>
-    <div class=\"card\">
-      <ul>{issue_rows or '<li>No issues detected for this cycle</li>'}</ul>
-    </div>
+        <h2>Top News</h2>
+        <div class="card">
+            <ul>{news_items_rows or '<li class="small">No recent news items matched this cycle</li>'}</ul>
+        </div>
+
+        <h2>Debug Issues</h2>
+        <div class="card">
+            <ul>{issue_rows or '<li>No issues detected for this cycle</li>'}</ul>
+        </div>
 
     <h2>Symbols Scanned This Cycle</h2>
     <div class=\"card\"><div class=\"symbols-grid\">{scanned_grid or '<div class=\"small\">No symbols scanned</div>'}</div></div>

@@ -14,6 +14,7 @@ class NewsItem:
     source: str
     published_at: datetime
     summary: str | None = None
+    url: str | None = None
 
 
 @dataclass(slots=True)
@@ -31,6 +32,7 @@ class ConventionalSignal:
     confidence: float
     momentum_5d: float
     momentum_20d: float
+    details: Any = field(default_factory=dict)
 
 
 @dataclass(slots=True)

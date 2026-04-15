@@ -193,6 +193,7 @@ class RSSNewsProvider(NewsProvider):
                                 source=str(feed.get("domain") or feed.get("url") or "rss"),
                                 summary=summary if summary else None,
                                 published_at=published,
+                                url=link or None,
                             )
                         )
                         per_symbol_counts[sym] = per_symbol_counts.get(sym, 0) + 1

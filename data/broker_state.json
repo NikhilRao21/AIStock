@@ -1,0 +1,82 @@
+{
+  "cash": 44950.83395235823,
+  "fee_bps": 5.0,
+  "positions": {
+    "JPM": {
+      "quantity": 9,
+      "avg_cost": 305.8699951171875
+    },
+    "UNH": {
+      "quantity": 9,
+      "avg_cost": 314.6300048828125
+    },
+    "HD": {
+      "quantity": 8,
+      "avg_cost": 338.1650085449219
+    },
+    "BAC": {
+      "quantity": 55,
+      "avg_cost": 54.39500045776367
+    },
+    "NFLX": {
+      "quantity": 28,
+      "avg_cost": 107.05999755859375
+    },
+    "AMD": {
+      "quantity": 11,
+      "avg_cost": 255.32000732421875
+    },
+    "INTC": {
+      "quantity": 46,
+      "avg_cost": 64.49500274658203
+    },
+    "CSCO": {
+      "quantity": 36,
+      "avg_cost": 82.41999816894531
+    },
+    "QCOM": {
+      "quantity": 22,
+      "avg_cost": 133.32000732421875
+    },
+    "ORCL": {
+      "quantity": 17,
+      "avg_cost": 170.47999572753906
+    },
+    "AVGO": {
+      "quantity": 7,
+      "avg_cost": 393.6449890136719
+    },
+    "TXN": {
+      "quantity": 14,
+      "avg_cost": 213.89999389648438
+    },
+    "AMAT": {
+      "quantity": 7,
+      "avg_cost": 386.67999267578125
+    },
+    "IWM": {
+      "quantity": 11,
+      "avg_cost": 269.010009765625
+    },
+    "DIA": {
+      "quantity": 6,
+      "avg_cost": 484.7300109863281
+    },
+    "XLF": {
+      "quantity": 57,
+      "avg_cost": 52.310001373291016
+    },
+    "XLK": {
+      "quantity": 20,
+      "avg_cost": 149.66000366210938
+    },
+    "XLI": {
+      "quantity": 17,
+      "avg_cost": 171.18499755859375
+    },
+    "UBER": {
+      "quantity": 38,
+      "avg_cost": 77.87999725341797
+    }
+  }
+}
