@@ -359,7 +359,12 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
     except Exception as exc:
         news_failure = f"{type(exc).__name__}: {exc}"
         news_fallback_used = True
-        news = MockNewsProvider().fetch_news(symbols)
+        cached_news = _read_cached_news(data_dir)
+        if cached_news:
+            news = cached_news
+            news_cache_fallback_used = True
+        else:
+            news = []
 
     if news and not news_cache_fallback_used:
         _write_cached_news(data_dir, news)
@@ -400,6 +405,10 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
     sized_zero_reasons: dict[str, int] = defaultdict(int)
     blocked_by_market_hours = 0
 
+    cash_available = broker.cash
+    skipped_conventional: list[dict[str, str]] = []
+    fee_bps = float(getattr(broker, "fee_bps", 0.0) or 0.0)
+
     for symbol in symbols:
         # Reuse pre-fetched market data if available; otherwise attempt to fetch.
         closes = closes_map.get(symbol)
@@ -411,7 +420,11 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
             except Exception:
                 continue
 
-        conventional = conventional_signal(symbol, closes)
+        try:
+            conventional = conventional_signal(symbol, closes)
+        except Exception as exc:
+            skipped_conventional.append({"symbol": symbol, "error": f"{type(exc).__name__}: {exc}"})
+            continue
         ai = ai_by_symbol.get(symbol, AiSignal(symbol=symbol, action="HOLD", confidence=0.5, rationale="No AI signal"))
         decision = combine_signals(
             ai=ai,
@@ -440,13 +453,16 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
             pass
 
         prices[symbol] = px
-        pre_size_cash = broker.cash
+        pre_size_cash = cash_available
         sized = size_trade(
             decision=decision,
             latest_price=px,
-            cash=broker.cash,
+            cash=cash_available,
             max_allocation_per_trade=settings.max_allocation_per_trade,
         )
+        if sized.action == "BUY" and sized.quantity > 0:
+            est_cost = sized.quantity * px * (1.0 + fee_bps / 10_000.0)
+            cash_available = max(0.0, cash_available - est_cost)
         if sized.quantity == 0:
             if sized.action != "BUY":
                 sized_zero_reasons["non_buy_action"] += 1
@@ -539,6 +555,11 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
         ai_failure=ai_failure,
         execution_diagnostics=execution_diagnostics,
     )
+    if skipped_conventional:
+        sample = ", ".join(f"{item['symbol']}" for item in skipped_conventional[:5])
+        debug_issues.append(
+            f"Skipped {len(skipped_conventional)} symbol(s) due to conventional signal errors (sample: {sample})"
+        )
 
     recent = read_recent_reports(data_dir, limit=1)
     previous_equity = None

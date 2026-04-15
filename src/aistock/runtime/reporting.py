@@ -309,7 +309,12 @@ def _build_signal_performance(history: list[dict], latest_prices: dict[str, floa
     )
     method_stats: dict[str, dict[str, dict[str, float]]] = defaultdict(lambda: {})
 
-    for report in history:
+    for idx, report in enumerate(history):
+        next_report_prices = {}
+        if idx + 1 < len(history):
+            maybe_prices = history[idx + 1].get("market_prices")
+            if isinstance(maybe_prices, dict):
+                next_report_prices = maybe_prices
         fill_index: dict[tuple[str, str, int], dict[str, Any]] = {}
         for decision in report.get("decisions", []):
             fill_index[(
@@ -323,7 +328,10 @@ def _build_signal_performance(history: list[dict], latest_prices: dict[str, floa
             action = str(fill.get("action", ""))
             quantity = float(fill.get("quantity", 0) or 0.0)
             fill_price = float(fill.get("fill_price", 0.0) or 0.0)
-            current_price = latest_trade_price.get(symbol)
+            if next_report_prices:
+                current_price = float(next_report_prices.get(symbol, 0.0) or 0.0)
+            else:
+                current_price = latest_trade_price.get(symbol)
             if not current_price or fill_price <= 0:
                 continue
 
@@ -351,16 +359,18 @@ def _build_signal_performance(history: list[dict], latest_prices: dict[str, floa
                 if family == "conventional":
                     details = signal.get("details")
                     if isinstance(details, dict):
-                        family_methods = method_stats.setdefault(family, {})
-                        for method_name, method_val in details.items():
-                            m = family_methods.get(method_name)
-                            if m is None:
-                                family_methods[method_name] = {"trades": 0.0, "wins": 0.0, "return_sum": 0.0, "confidence_sum": 0.0}
-                                m = family_methods[method_name]
-                            m["trades"] += 1
-                            m["wins"] += 1 if outcome > 0 else 0
-                            m["return_sum"] += outcome
-                            m["confidence_sum"] += float(signal.get("confidence", 0.0) or 0.0)
+                        per_method = details.get("per_method_scores")
+                        if isinstance(per_method, dict):
+                            family_methods = method_stats.setdefault(family, {})
+                            for method_name in per_method.keys():
+                                m = family_methods.get(method_name)
+                                if m is None:
+                                    family_methods[method_name] = {"trades": 0.0, "wins": 0.0, "return_sum": 0.0, "confidence_sum": 0.0}
+                                    m = family_methods[method_name]
+                                m["trades"] += 1
+                                m["wins"] += 1 if outcome > 0 else 0
+                                m["return_sum"] += outcome
+                                m["confidence_sum"] += float(signal.get("confidence", 0.0) or 0.0)
 
     families: dict[str, dict[str, Any]] = {}
     underperformers: list[dict[str, Any]] = []
