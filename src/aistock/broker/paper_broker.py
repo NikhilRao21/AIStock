@@ -8,7 +8,7 @@ from aistock.core.types import Fill, PortfolioSnapshot, Position
 
 @dataclass(slots=True)
 class _Holding:
-    quantity: int
+    quantity: float
     avg_cost: float
 
 
@@ -19,7 +19,7 @@ class PaperBroker(Broker):
         self._positions: dict[str, _Holding] = {}
         self.last_rejection_reason: str | None = None
 
-    def buy(self, symbol: str, quantity: int, price: float) -> Fill | None:
+    def buy(self, symbol: str, quantity: float, price: float) -> Fill | None:
         if quantity <= 0:
             self.last_rejection_reason = "quantity_zero"
             return None
@@ -44,7 +44,7 @@ class PaperBroker(Broker):
         self.last_rejection_reason = None
         return Fill(symbol=symbol, action="BUY", quantity=quantity, fill_price=price, fee=fee)
 
-    def sell(self, symbol: str, quantity: int, price: float) -> Fill | None:
+    def sell(self, symbol: str, quantity: float, price: float) -> Fill | None:
         if quantity <= 0:
             self.last_rejection_reason = "quantity_zero"
             return None
@@ -55,14 +55,15 @@ class PaperBroker(Broker):
         if old is None or old.quantity <= 0:
             self.last_rejection_reason = "no_position"
             return None
-
         qty = min(quantity, old.quantity)
         gross = qty * price
         fee = gross * (self.fee_bps / 10_000)
         self.cash += gross - fee
 
         remain = old.quantity - qty
-        if remain == 0:
+
+        # Treat tiny remainders as zero to avoid floating-point residue
+        if abs(remain) < 1e-12:
             self._positions.pop(symbol, None)
         else:
             self._positions[symbol] = _Holding(quantity=remain, avg_cost=old.avg_cost)
@@ -99,7 +100,7 @@ class PaperBroker(Broker):
             for symbol, payload in positions.items():
                 if not isinstance(payload, dict):
                     continue
-                qty = int(payload.get("quantity", 0))
+                qty = float(payload.get("quantity", 0))
                 avg_cost = float(payload.get("avg_cost", 0.0))
                 if qty > 0 and avg_cost >= 0:
                     broker._positions[symbol] = _Holding(quantity=qty, avg_cost=avg_cost)

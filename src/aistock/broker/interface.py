@@ -7,11 +7,11 @@ from aistock.core.types import Fill, PortfolioSnapshot
 
 class Broker(ABC):
     @abstractmethod
-    def buy(self, symbol: str, quantity: int, price: float) -> Fill | None:
+    def buy(self, symbol: str, quantity: float, price: float) -> Fill | None:
         raise NotImplementedError
 
     @abstractmethod
-    def sell(self, symbol: str, quantity: int, price: float) -> Fill | None:
+    def sell(self, symbol: str, quantity: float, price: float) -> Fill | None:
         raise NotImplementedError
 
     @abstractmethod

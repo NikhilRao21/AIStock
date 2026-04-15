@@ -227,6 +227,37 @@ def _collect_debug_issues(
         else:
             issues.append("No fills were executed (informational: no executable orders)")
 
+    # Add compact debug samples for quick triage in the dashboard debug center
+    if news_debug:
+        try:
+            sample = news_debug[:3]
+            sample_str = ", ".join(f"{s.get('symbol','*')}:{s.get('status','')}" for s in sample)
+            issues.append(f"News raw sample: {sample_str}")
+        except Exception:
+            pass
+    if ai_debug:
+        try:
+            sample = ai_debug[:3]
+            sample_str = ", ".join(f"{s.get('symbol','*')}:{s.get('status','')}" for s in sample)
+            issues.append(f"AI raw sample: {sample_str}")
+        except Exception:
+            pass
+
+    # Include sizing and execution diagnostic summaries for easier debugging
+    try:
+        sized_reasons = execution_diagnostics.get("sized_zero_reasons", {})
+        if isinstance(sized_reasons, dict) and sized_reasons:
+            sr_items = ", ".join(f"{k}={v}" for k, v in sorted(sized_reasons.items()))
+            issues.append(f"Sized-zero reasons: {sr_items}")
+    except Exception:
+        pass
+    try:
+        failed = execution_diagnostics.get("failed_orders", [])
+        if isinstance(failed, list) and failed:
+            issues.append(f"Failed orders count: {len(failed)}")
+    except Exception:
+        pass
+
     return issues
 
 
@@ -243,6 +274,39 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
     market = YFinanceProvider()
 
     symbols = resolve_symbols(settings=settings, market=market, data_dir=data_dir)
+
+    # Pre-compute market trends and latest prices for AI input to avoid
+    # repeated yfinance calls during the cycle.
+    market_trends: dict[str, dict[str, float]] = {}
+    prices: dict[str, float] = {}
+    closes_map: dict[str, list[float]] = {}
+    for symbol in symbols:
+        try:
+            closes = market.closes(symbol, days=30)
+            px = market.latest_price(symbol)
+        except Exception:
+            # If market data isn't available for a symbol, skip trend computation.
+            continue
+        closes_map[symbol] = closes
+        prices[symbol] = px
+        ma5 = None
+        ma20 = None
+        try:
+            if len(closes) >= 5:
+                ma5 = sum(closes[-5:]) / 5.0
+            if len(closes) >= 20:
+                ma20 = sum(closes[-20:]) / 20.0
+        except Exception:
+            ma5 = None
+            ma20 = None
+        momentum_5d = (closes[-1] - closes[-5]) / closes[-5] if len(closes) >= 5 and closes[-5] != 0 else 0.0
+        momentum_20d = (closes[-1] - closes[-20]) / closes[-20] if len(closes) >= 20 and closes[-20] != 0 else 0.0
+        market_trends[symbol] = {
+            "ma5": ma5,
+            "ma20": ma20,
+            "momentum_5d": round(momentum_5d, 6),
+            "momentum_20d": round(momentum_20d, 6),
+        }
     news_failure: str | None = None
     ai_failure: str | None = None
     news_fallback_used = False
@@ -280,7 +344,9 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
         _write_cached_news(data_dir, news)
 
     try:
-        ai_signals = ai_provider.score_news(news)
+        # Provide market trends to the AI provider so it can consider recent
+        # price action alongside news headlines.
+        ai_signals = ai_provider.score_news(news, trends=market_trends)
     except Exception as exc:
         ai_signals = []
         ai_failure = f"{type(exc).__name__}: {exc}"
@@ -291,18 +357,38 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
         if isinstance(maybe_debug, list):
             ai_raw_output = maybe_debug
 
+    # If using the remote Hackclub AI provider and it appears to be failing
+    # (e.g., auth errors), fallback to the local MockAiProvider so the
+    # pipeline can continue producing trend-based signals.
+    from aistock.integrations.ai.hackclub import HackclubAiProvider
+    if isinstance(ai_provider, HackclubAiProvider):
+        auth_errors = [it for it in ai_raw_output if str(it.get("status", "")).lower() == "auth_error"]
+        if not ai_signals or (ai_raw_output and len(auth_errors) >= max(1, len(ai_raw_output) // 2)):
+            try:
+                fallback = MockAiProvider()
+                fallback_signals = fallback.score_news(news, trends=market_trends)
+                # mark a debug entry indicating we fell back
+                ai_raw_output.append({"symbol": "*", "status": "fallback_used", "http_status": None, "error": "Falling back to MockAiProvider due to remote failures", "raw_response": None})
+                ai_signals = fallback_signals
+            except Exception:
+                # If fallback also fails, continue with whatever we have
+                pass
+
     ai_by_symbol: dict[str, AiSignal] = {s.symbol: s for s in ai_signals}
     decisions: list[TradeDecision] = []
-    prices: dict[str, float] = {}
     sized_zero_reasons: dict[str, int] = defaultdict(int)
     blocked_by_market_hours = 0
 
     for symbol in symbols:
-        try:
-            closes = market.closes(symbol, days=30)
-            px = market.latest_price(symbol)
-        except Exception:
-            continue
+        # Reuse pre-fetched market data if available; otherwise attempt to fetch.
+        closes = closes_map.get(symbol)
+        px = prices.get(symbol)
+        if closes is None or px is None:
+            try:
+                closes = market.closes(symbol, days=30)
+                px = market.latest_price(symbol)
+            except Exception:
+                continue
 
         conventional = conventional_signal(symbol, closes)
         ai = ai_by_symbol.get(symbol, AiSignal(symbol=symbol, action="HOLD", confidence=0.5, rationale="No AI signal"))
@@ -356,7 +442,7 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
     fills = []
     executable_orders = 0
     failed_orders: list[dict[str, Any]] = []
-    held_quantities = defaultdict(int)
+    held_quantities = defaultdict(float)
     snapshot = broker.snapshot(prices)
     for pos in snapshot.positions:
         held_quantities[pos.symbol] = pos.quantity

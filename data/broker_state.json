@@ -1,82 +1,98 @@
 {
-  "cash": 44950.83395235823,
+  "cash": 30965.500413881808,
   "fee_bps": 5.0,
   "positions": {
     "JPM": {
-      "quantity": 9,
-      "avg_cost": 305.8699951171875
+      "quantity": 9.812898,
+      "avg_cost": 305.7200927734375
     },
     "UNH": {
-      "quantity": 9,
-      "avg_cost": 314.6300048828125
+      "quantity": 9.541681,
+      "avg_cost": 314.4100036621094
     },
     "HD": {
-      "quantity": 8,
-      "avg_cost": 338.1650085449219
+      "quantity": 8.870491,
+      "avg_cost": 338.20001220703125
     },
     "BAC": {
-      "quantity": 55,
-      "avg_cost": 54.39500045776367
+      "quantity": 55.268977,
+      "avg_cost": 54.279998779296875
     },
     "NFLX": {
-      "quantity": 28,
-      "avg_cost": 107.05999755859375
+      "quantity": 27.992935,
+      "avg_cost": 107.1698989868164
     },
     "AMD": {
-      "quantity": 11,
-      "avg_cost": 255.32000732421875
+      "quantity": 11.711426,
+      "avg_cost": 256.16009521484375
     },
     "INTC": {
-      "quantity": 46,
-      "avg_cost": 64.49500274658203
+      "quantity": 46.430933,
+      "avg_cost": 64.61209869384766
     },
     "CSCO": {
-      "quantity": 36,
-      "avg_cost": 82.41999816894531
+      "quantity": 36.346014,
+      "avg_cost": 82.54000091552734
     },
     "QCOM": {
-      "quantity": 22,
-      "avg_cost": 133.32000732421875
+      "quantity": 22.611644,
+      "avg_cost": 132.6750030517578
     },
     "ORCL": {
-      "quantity": 17,
-      "avg_cost": 170.47999572753906
+      "quantity": 17.603568,
+      "avg_cost": 170.4199981689453
     },
     "AVGO": {
-      "quantity": 7,
-      "avg_cost": 393.6449890136719
+      "quantity": 7.607648,
+      "avg_cost": 394.3399963378906
     },
     "TXN": {
-      "quantity": 14,
-      "avg_cost": 213.89999389648438
+      "quantity": 13.976892,
+      "avg_cost": 214.63999938964844
     },
     "AMAT": {
-      "quantity": 7,
-      "avg_cost": 386.67999267578125
+      "quantity": 7.691913,
+      "avg_cost": 390.0199890136719
     },
     "IWM": {
-      "quantity": 11,
-      "avg_cost": 269.010009765625
+      "quantity": 11.152416,
+      "avg_cost": 269.0
     },
     "DIA": {
-      "quantity": 6,
-      "avg_cost": 484.7300109863281
+      "quantity": 6.188246,
+      "avg_cost": 484.7900085449219
     },
     "XLF": {
-      "quantity": 57,
-      "avg_cost": 52.310001373291016
+      "quantity": 57.405283,
+      "avg_cost": 52.2599983215332
     },
     "XLK": {
-      "quantity": 20,
-      "avg_cost": 149.66000366210938
+      "quantity": 20.02268,
+      "avg_cost": 149.83009338378906
     },
     "XLI": {
-      "quantity": 17,
-      "avg_cost": 171.18499755859375
+      "quantity": 17.50547,
+      "avg_cost": 171.375
     },
     "UBER": {
-      "quantity": 38,
-      "avg_cost": 77.87999725341797
+      "quantity": 38.702187,
+      "avg_cost": 77.51499938964844
+    },
+    "MA": {
+      "quantity": 5.752857,
+      "avg_cost": 521.47998046875
+    },
+    "SPY": {
+      "quantity": 4.288042,
+      "avg_cost": 699.6199951171875
+    },
+    "QQQ": {
+      "quantity": 4.716907,
+      "avg_cost": 636.010009765625
+    },
+    "META": {
+      "quantity": 4.461564,
+      "avg_cost": 672.4099731445312
     }
   }
 }

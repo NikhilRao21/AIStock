@@ -48,7 +48,7 @@ class TradeDecision:
     symbol: str
     action: Action
     confidence: float
-    quantity: int
+    quantity: float
     reason: str
     signals: list[SignalSnapshot] = field(default_factory=list)
     is_hidden_gem: bool = False
@@ -58,7 +58,7 @@ class TradeDecision:
 @dataclass(slots=True)
 class Position:
     symbol: str
-    quantity: int
+    quantity: float
     avg_cost: float
 
 
@@ -66,7 +66,7 @@ class Position:
 class Fill:
     symbol: str
     action: Action
-    quantity: int
+    quantity: float
     fill_price: float
     fee: float
     timestamp: datetime = field(default_factory=datetime.utcnow)

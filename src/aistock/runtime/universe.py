@@ -66,7 +66,17 @@ def resolve_symbols(
             if len(filtered) >= batch_size:
                 break
 
-    return filtered or selected_batch
+    # If filtered set is smaller than the desired batch_size but not empty,
+    # top up from the selected_batch so the cycle scans up to `batch_size`
+    # symbols. This avoids very-small scans when many symbols fail price
+    # checks transiently.
+    if filtered:
+        if len(filtered) < batch_size and selected_batch:
+            to_add = [s for s in selected_batch if s not in filtered][: max(0, batch_size - len(filtered))]
+            filtered.extend(to_add)
+        return filtered
+
+    return selected_batch
 
 
 def _rotate_batch(symbols: list[str], cursor: int, batch_size: int) -> list[str]:

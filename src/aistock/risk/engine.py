@@ -14,7 +14,7 @@ def size_trade(
             symbol=decision.symbol,
             action=decision.action,
             confidence=decision.confidence,
-            quantity=0,
+            quantity=0.0,
             reason=decision.reason,
             signals=list(decision.signals),
             is_hidden_gem=decision.is_hidden_gem,
@@ -22,12 +22,16 @@ def size_trade(
         )
 
     budget = cash * max_allocation_per_trade
-    qty = int(budget // latest_price)
+    # Allow fractional shares: allocate budget / price and round to reasonable precision
+    if latest_price <= 0:
+        qty = 0.0
+    else:
+        qty = round(budget / latest_price, 6)
     return TradeDecision(
         symbol=decision.symbol,
         action=decision.action,
         confidence=decision.confidence,
-        quantity=max(0, qty),
+        quantity=max(0.0, qty),
         reason=decision.reason,
         signals=list(decision.signals),
         is_hidden_gem=decision.is_hidden_gem,

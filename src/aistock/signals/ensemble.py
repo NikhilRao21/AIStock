@@ -35,7 +35,7 @@ def combine_signals(
         symbol=ai.symbol,
         action=action,
         confidence=confidence,
-        quantity=0,
+        quantity=0.0,
         reason=reason,
         signals=[
             SignalSnapshot(

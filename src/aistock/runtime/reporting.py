@@ -315,13 +315,13 @@ def _build_signal_performance(history: list[dict], latest_prices: dict[str, floa
             fill_index[(
                 str(decision.get("symbol", "")),
                 str(decision.get("action", "")),
-                int(decision.get("quantity", 0) or 0),
+                float(decision.get("quantity", 0) or 0.0),
             )] = decision
 
         for fill in report.get("fills", []):
             symbol = str(fill.get("symbol", ""))
             action = str(fill.get("action", ""))
-            quantity = int(fill.get("quantity", 0) or 0)
+            quantity = float(fill.get("quantity", 0) or 0.0)
             fill_price = float(fill.get("fill_price", 0.0) or 0.0)
             current_price = latest_trade_price.get(symbol)
             if not current_price or fill_price <= 0:

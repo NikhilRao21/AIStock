@@ -37,9 +37,10 @@ class HackclubAiProvider(AiProvider):
     def _url(self) -> str:
         return f"{self._base_url.rstrip('/')}/{self._endpoint.lstrip('/')}"
 
-    def score_news(self, news: list[NewsItem]) -> list[AiSignal]:
+    def score_news(self, news: list[NewsItem], trends: dict[str, dict[str, Any]] | None = None) -> list[AiSignal]:
         self.last_debug = []
-        if not news:
+        if not news and not (isinstance(trends, dict) and trends):
+            # No actionable input (neither news nor trends) — record debug and return.
             self.last_debug.append(
                 {
                     "symbol": "*",
@@ -47,7 +48,7 @@ class HackclubAiProvider(AiProvider):
                     "http_status": None,
                     "raw_response": None,
                     "extracted_content": None,
-                    "error": "No news items were provided to AI provider",
+                    "error": "No news items or market trends were provided to AI provider",
                     "parsed": None,
                     "model": self._model,
                 }
@@ -58,6 +59,11 @@ class HackclubAiProvider(AiProvider):
         for item in news:
             grouped.setdefault(item.symbol, []).append(item)
 
+        # Build the set of symbols to score: those with news, plus those with trends
+        symbols_to_score: set[str] = set(grouped.keys())
+        if isinstance(trends, dict):
+            symbols_to_score.update(trends.keys())
+
         signals: list[AiSignal] = []
         headers = {
             "Accept": "application/json",
@@ -67,8 +73,12 @@ class HackclubAiProvider(AiProvider):
         if settings.ai_hackclub_api_key:
             headers["Authorization"] = f"Bearer {settings.ai_hackclub_api_key}"
 
-        for symbol, items in grouped.items():
-            prompt = self._build_prompt(symbol, items)
+        for symbol in symbols_to_score:
+            items = grouped.get(symbol, [])
+            trend = None
+            if isinstance(trends, dict):
+                trend = trends.get(symbol)
+            prompt = self._build_prompt(symbol, items, trend=trend)
             payload = {
                 "model": self._model,
                 "messages": [
@@ -86,6 +96,7 @@ class HackclubAiProvider(AiProvider):
                 "extracted_content": None,
                 "error": None,
                 "parsed": None,
+                "trend": trend,
                 "model": self._model,
             }
 
@@ -142,10 +153,26 @@ class HackclubAiProvider(AiProvider):
         return signals
 
     @staticmethod
-    def _build_prompt(symbol: str, items: list[NewsItem]) -> str:
+    def _build_prompt(symbol: str, items: list[NewsItem], trend: dict[str, Any] | None = None) -> str:
         lines = [f"Classify these headlines for {symbol}:"]
         for idx, item in enumerate(items, start=1):
             lines.append(f"{idx}. {item.headline}")
+        if trend:
+            # Add a compact market trend summary to the prompt to help the model
+            trend_parts: list[str] = []
+            try:
+                if "ma5" in trend:
+                    trend_parts.append(f"MA5={trend.get('ma5'):.2f}")
+                if "ma20" in trend:
+                    trend_parts.append(f"MA20={trend.get('ma20'):.2f}")
+                if "momentum_5d" in trend:
+                    trend_parts.append(f"mom5={trend.get('momentum_5d'):.3f}")
+                if "momentum_20d" in trend:
+                    trend_parts.append(f"mom20={trend.get('momentum_20d'):.3f}")
+            except Exception:
+                pass
+            if trend_parts:
+                lines.append("\nMarket trend summary: " + ", ".join(trend_parts))
         lines.append(
             'Return only JSON: {"action":"BUY|SELL|HOLD","confidence":0..1,"rationale":"short text"}'
         )

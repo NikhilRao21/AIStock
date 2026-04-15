@@ -93,23 +93,17 @@ RSS provider notes:
 
 - Feeds are configured in `data/news_sources.json` (JSON array with `url`, `domain`, and `poll_interval_seconds`).
 - Run a single-pass fetch and update the local cache with:
-
-```bash
-python scripts/fetch_news.py
 ```
 
 - Use `NEWS_PROVIDER=rss` for production or local setups where you prefer free, cached RSS ingestion instead of API-backed search providers.
 
-## Dashboard Output
-
 Each cycle now writes persistent artifacts to `DATA_DIR` (default `data`):
-
-- `data/latest_cycle.json` latest cycle summary
 - `data/cycle_reports.jsonl` append-only history for every cycle
 - `data/dashboard.html` dashboard page with latest positions and equity changes
 
-Serve the dashboard locally:
 
+Notes:
+- The `rss` provider is implemented and uses `data/news_sources.json` as a feed manifest. Run `PYTHONPATH=src python scripts/fetch_news.py` to perform a single-pass fetch and populate `data/news_cache.json`.
 ```bash
 python scripts/serve_dashboard.py --dir data --port 8080
 ```
