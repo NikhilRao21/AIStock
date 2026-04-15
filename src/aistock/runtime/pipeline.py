@@ -318,6 +318,27 @@ def run_one_cycle(broker: PaperBroker | None = None) -> dict:
             maybe_debug = getattr(news_provider, "last_debug")
             if isinstance(maybe_debug, list):
                 news_raw_output = maybe_debug
+        # Include a per-news-item debug entry so dashboard raw output reflects
+        # matched items (not only provider feed-level responses).
+        try:
+            for ni in news:
+                try:
+                    news_raw_output.append(
+                        {
+                            "symbol": ni.symbol,
+                            "status": "matched",
+                            "http_status": None,
+                            "source": getattr(ni, "source", None),
+                            "headline": getattr(ni, "headline", None),
+                            "url": getattr(ni, "url", None),
+                            "published_at": getattr(ni, "published_at", None).isoformat() if getattr(ni, "published_at", None) is not None else None,
+                        }
+                    )
+                except Exception:
+                    # best-effort per-item debug append
+                    continue
+        except Exception:
+            pass
         rate_limited = any(str(item.get("status", "")) == "rate_limited" for item in news_raw_output)
         if rate_limited and not news:
             cached_news = _read_cached_news(data_dir)

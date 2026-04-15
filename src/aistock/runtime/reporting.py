@@ -168,7 +168,7 @@ def write_cycle_report(
         },
         "hidden_gem_candidates": hidden_gem_candidates,
         "news_status": news_status or {"ok": True, "fallback_used": False, "error": None},
-        "news_raw_output_count": len((news_status or {}).get("raw_output", [])) if isinstance(news_status, dict) else 0,
+        "news_raw_output_count": len(news_items) if news_items is not None else (len((news_status or {}).get("raw_output", [])) if isinstance(news_status, dict) else 0),
         "news_error_counts": (news_status or {}).get("error_counts", {}) if isinstance(news_status, dict) else {},
         "ai_status": ai_status or {"ok": True, "error": None, "provider": "unknown"},
         "execution_diagnostics": execution_diagnostics or {"sized_zero_reasons": {}, "executable_orders": 0, "failed_orders": []},
@@ -584,6 +584,7 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
       <div class=\"card\"><div class=\"label\">AI Outputs</div><div class=\"value\">{len(ai_output)}</div></div>
       <div class=\"card\"><div class=\"label\">Raw AI Responses</div><div class=\"value\">{len(ai_raw_output)}</div></div>
     <div class=\"card\"><div class=\"label\">Raw News Responses</div><div class=\"value\">{len(news_raw_output)}</div></div>
+    <div class=\"card\"><div class=\"label\">News Items Matched</div><div class=\"value\">{len(latest.get('news_items', []))}</div></div>
       <div class=\"card\"><div class=\"label\">Hidden Gems</div><div class=\"value\">{len(latest.get('hidden_gem_candidates', []))}</div></div>
       <div class=\"card\"><div class=\"label\">News Status</div><div class=\"value {'status-ok' if news_ok else 'status-bad'}\">{'OK' if news_ok else 'FAIL'}</div></div>
         </div>
