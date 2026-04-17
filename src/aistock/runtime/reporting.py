@@ -444,6 +444,10 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
         f"<tr><td>{escape(str(p['symbol']))}</td><td>{p['quantity']}</td><td>${p['avg_cost']}</td></tr>"
         for p in position_change.get("carried_positions", [])
     )
+    closed_rows = "".join(
+        f"<tr><td>{escape(str(p['symbol']))}</td><td>{p['quantity']}</td><td>${p['avg_cost']}</td></tr>"
+        for p in position_change.get("closed_positions", [])
+    )
     # compact grid for scanned symbols
     scanned_grid = "".join(f"<div class='badge'>{escape(str(symbol))}</div>" for symbol in latest.get("symbols_scanned", []))
     positions_rows = "".join(
@@ -472,6 +476,15 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
         f"<tr><td>{escape(str(item['family']))}</td><td>{item['trades']}</td><td>{item['win_rate']}</td><td>{item['avg_return']}</td></tr>"
         for item in latest.get("signal_performance", {}).get("underperformers", [])
     )
+    signal_method_rows = ""
+    for family, summary in latest.get("signal_performance", {}).get("families", {}).items():
+        methods = summary.get("methods", {}) if isinstance(summary, dict) else {}
+        for method_name, method_summary in methods.items():
+            signal_method_rows += (
+                f"<tr><td>{escape(str(family))}</td><td>{escape(str(method_name))}</td>"
+                f"<td>{method_summary.get('trades', 0)}</td><td>{method_summary.get('win_rate', 0)}</td>"
+                f"<td>{method_summary.get('avg_return', 0)}</td><td>{method_summary.get('avg_confidence', 0)}</td></tr>"
+            )
 
     ai_output = latest.get("ai_output", [])
     ai_output_rows = "".join(
@@ -494,6 +507,15 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
     purchase_rows = "".join(
         f"<tr><td>{escape(str(item.get('timestamp_human', item.get('timestamp_et', item.get('timestamp', '')))))}</td><td>{escape(str(item.get('symbol', '')))}</td><td>{item.get('quantity', '')}</td><td>${item.get('fill_price', '')}</td><td>${item.get('fee', '')}</td><td>${item.get('equity', '')}</td></tr>"
         for item in latest.get('purchase_log', [])
+    )
+    fills_rows = "".join(
+        (
+            f"<tr><td>{escape(str(item.get('timestamp_human', item.get('timestamp_et', item.get('timestamp', '')))))}</td>"
+            f"<td>{escape(str(item.get('symbol', '')))}</td>"
+            f"<td class=\"action-{escape(str(item.get('action', '')).lower())}\">{escape(str(item.get('action', '')))}</td>"
+            f"<td>{item.get('quantity', '')}</td><td>${item.get('fill_price', '')}</td><td>${item.get('fee', '')}</td></tr>"
+        )
+        for item in latest.get("fills", [])
     )
 
     recent_rows = "".join(
@@ -577,6 +599,9 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
         .symbols-grid {{ display:grid; grid-template-columns: repeat(auto-fit, minmax(90px,1fr)); gap:8px; align-items:start; }}
         .pnl-positive {{ color:var(--ok); font-weight:700; }}
         .pnl-negative {{ color:var(--bad); font-weight:700; }}
+        .action-buy {{ color:var(--ok); font-weight:700; }}
+        .action-sell {{ color:var(--bad); font-weight:700; }}
+        .action-hold {{ color:var(--muted); font-weight:700; }}
         .small {{ font-size:12px; color:var(--muted); }}
   </style>
 </head>
@@ -630,6 +655,10 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
         <h3>Carried Positions</h3>
         <table><thead><tr><th>Symbol</th><th>Qty</th><th>Avg Cost</th></tr></thead><tbody>{carried_rows or '<tr><td colspan="3">No carried positions</td></tr>'}</tbody></table>
       </div>
+      <div class=\"card\">
+        <h3>Closed Positions (Sells)</h3>
+        <table><thead><tr><th>Symbol</th><th>Qty</th><th>Avg Cost</th></tr></thead><tbody>{closed_rows or '<tr><td colspan="3">No closed positions</td></tr>'}</tbody></table>
+      </div>
     </div>
 
     <h2>Hidden-Gem Candidates</h2>
@@ -659,13 +688,21 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
             </details>
         </div>
 
-        <h2>Purchase Log</h2>
-        <div class=\"card\">
-            <table>
-                <thead><tr><th>Time</th><th>Symbol</th><th>Qty</th><th>Price</th><th>Fee</th><th>Equity</th></tr></thead>
-                <tbody>{purchase_rows or '<tr><td colspan="6">No purchases logged</td></tr>'}</tbody>
-            </table>
-        </div>
+    <h2>Purchase Log</h2>
+    <div class=\"card\">
+      <table>
+        <thead><tr><th>Time</th><th>Symbol</th><th>Qty</th><th>Price</th><th>Fee</th><th>Equity</th></tr></thead>
+        <tbody>{purchase_rows or '<tr><td colspan="6">No purchases logged</td></tr>'}</tbody>
+      </table>
+    </div>
+
+    <h2>Recent Fills (Buys & Sells)</h2>
+    <div class=\"card\">
+      <table>
+        <thead><tr><th>Time</th><th>Symbol</th><th>Action</th><th>Qty</th><th>Price</th><th>Fee</th></tr></thead>
+        <tbody>{fills_rows or '<tr><td colspan="6">No fills this cycle</td></tr>'}</tbody>
+      </table>
+    </div>
 
     <h2>Signal Performance</h2>
     <div class=\"card\">
@@ -677,6 +714,11 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
       <table>
         <thead><tr><th>Family</th><th>Trades</th><th>Win Rate</th><th>Avg Return</th></tr></thead>
         <tbody>{underperformer_rows or '<tr><td colspan="4">No signals are underperforming</td></tr>'}</tbody>
+      </table>
+      <h3>Conventional Method Stratification</h3>
+      <table>
+        <thead><tr><th>Family</th><th>Method</th><th>Trades</th><th>Win Rate</th><th>Avg Return</th><th>Avg Confidence</th></tr></thead>
+        <tbody>{signal_method_rows or '<tr><td colspan="6">No method-level signal stats yet</td></tr>'}</tbody>
       </table>
     </div>
 

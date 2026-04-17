@@ -10,6 +10,7 @@ from aistock.core.config import Settings
 from aistock.integrations.market.base import MarketDataProvider
 
 _NASDAQ_LIST_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqtraded.txt"
+_GITHUB_TICKERS_URL = "https://raw.githubusercontent.com/rreichel3/US-Stock-Symbols/main/all/all_tickers.txt"
 _AUTO_FALLBACK_SYMBOLS = [
     "JPM", "XOM", "UNH", "JNJ", "PG", "HD", "CVX", "MA", "V", "LLY",
     "BAC", "KO", "PEP", "ABBV", "MRK", "COST", "WMT", "ADBE", "CRM", "NFLX",
@@ -133,32 +134,53 @@ def _load_or_refresh_universe(data_dir: Path, max_symbols: int) -> list[str]:
 
 
 def _fetch_us_listed_symbols() -> list[str]:
-    resp = requests.get(_NASDAQ_LIST_URL, timeout=20)
-    resp.raise_for_status()
-
     symbols: list[str] = []
-    for line in resp.text.splitlines():
-        if not line or line.startswith("File Creation Time"):
-            continue
-        if line.startswith("Symbol|"):
+    errors: list[Exception] = []
+
+    for source_url in (_NASDAQ_LIST_URL, _GITHUB_TICKERS_URL):
+        try:
+            resp = requests.get(source_url, timeout=20)
+            resp.raise_for_status()
+        except requests.RequestException as exc:
+            errors.append(exc)
             continue
 
-        parts = line.split("|")
-        if len(parts) < 7:
-            continue
+        symbols.extend(_parse_symbol_source_payload(resp.text))
+        if symbols:
+            break
 
-        symbol = parts[0].strip().upper()
-        test_issue = parts[6].strip().upper()
-        if not symbol or test_issue == "Y":
-            continue
-        if not symbol.isalpha() or len(symbol) < 2 or len(symbol) > 5:
-            continue
-        if any(ch in symbol for ch in ("$", "^", "/")):
-            continue
-
-        symbols.append(symbol)
-
+    if not symbols and errors:
+        raise errors[-1]
     return _sanitize_symbols(symbols)
+
+
+def _parse_symbol_source_payload(payload: str) -> list[str]:
+    symbols: list[str] = []
+    lines = payload.splitlines()
+    if not lines:
+        return symbols
+
+    looks_like_nasdaq_txt = lines[0].startswith("Symbol|") or any("|" in line for line in lines[:3])
+    if looks_like_nasdaq_txt:
+        for line in lines:
+            if not line or line.startswith("File Creation Time") or line.startswith("Symbol|"):
+                continue
+            parts = line.split("|")
+            if len(parts) < 7:
+                continue
+            symbol = parts[0].strip().upper()
+            test_issue = parts[6].strip().upper()
+            if not symbol or test_issue == "Y":
+                continue
+            symbols.append(symbol)
+        return symbols
+
+    for line in lines:
+        symbol = line.strip().upper()
+        if not symbol or symbol in {"SYMBOL", "TICKER"}:
+            continue
+        symbols.append(symbol)
+    return symbols
 
 
 def _sanitize_symbols(symbols: list[str]) -> list[str]:

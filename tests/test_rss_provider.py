@@ -51,6 +51,32 @@ class RSSProviderTests(unittest.TestCase):
         self.assertEqual(items, [])
         self.assertEqual(provider.last_debug[0]["status"], "rate_limited")
 
+    def test_rss_provider_does_not_match_partial_symbol_tokens(self) -> None:
+        provider = RSSNewsProvider()
+        feed = """<?xml version='1.0'?>
+        <rss>
+          <channel>
+            <title>Test Feed</title>
+            <item>
+              <title>Market closes higher today</title>
+              <description>Broad market update with no ticker mention</description>
+              <link>http://example.com/market</link>
+              <pubDate>Mon, 01 Jan 2024 12:00:00 GMT</pubDate>
+            </item>
+          </channel>
+        </rss>
+        """
+
+        response = MagicMock()
+        response.status_code = 200
+        response.content = feed.encode("utf-8")
+        response.headers = {}
+
+        with patch.object(provider._session, "get", return_value=response):
+            items = provider.fetch_news(["MA"])
+
+        self.assertEqual(items, [])
+
 
 if __name__ == "__main__":
     unittest.main()

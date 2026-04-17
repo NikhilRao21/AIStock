@@ -22,7 +22,7 @@ from aistock.runtime.universe import resolve_symbols
 from aistock.signals.conventional import conventional_signal
 from aistock.signals.ensemble import combine_signals
 
-_HIDDEN_GEM_MIN_CONFIDENCE = 0.8
+_HIDDEN_GEM_MIN_CONFIDENCE = 0.65
 
 
 def _news_cache_path(data_dir: Path) -> Path:

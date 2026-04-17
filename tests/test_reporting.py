@@ -103,6 +103,9 @@ class ReportingTests(unittest.TestCase):
             self.assertIn("Raw News Responses", dashboard)
             self.assertIn("Execution Diagnostics", dashboard)
             self.assertIn("Cache fallback used", dashboard)
+            self.assertIn("Closed Positions (Sells)", dashboard)
+            self.assertIn("Recent Fills (Buys & Sells)", dashboard)
+            self.assertIn("Conventional Method Stratification", dashboard)
             self.assertIn("{&quot;error&quot;:&quot;boom&quot;}", dashboard)
 
 
