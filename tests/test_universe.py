@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 
 from aistock.core.config import Settings
-from aistock.runtime.universe import resolve_symbols
+from aistock.runtime.universe import _parse_symbol_source_payload, resolve_symbols
 
 
 class _FakeMarket:
@@ -22,6 +22,11 @@ class _FakeMarket:
 
 
 class UniverseTests(unittest.TestCase):
+    def test_parse_symbol_source_payload_handles_plain_ticker_lines(self) -> None:
+        payload = "AAPL\nMSFT\nGOOGL\n"
+        out = _parse_symbol_source_payload(payload)
+        self.assertEqual(out, ["AAPL", "MSFT", "GOOGL"])
+
     def test_auto_mode_reaches_outside_predefined_universe(self) -> None:
         settings = Settings(
             universe_mode="auto",

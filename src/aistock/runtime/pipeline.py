@@ -22,7 +22,7 @@ from aistock.runtime.universe import resolve_symbols
 from aistock.signals.conventional import conventional_signal
 from aistock.signals.ensemble import combine_signals
 
-_HIDDEN_GEM_MIN_CONFIDENCE = 0.8
+_HIDDEN_GEM_MIN_CONFIDENCE = 0.65
 
 
 def _news_cache_path(data_dir: Path) -> Path:
@@ -161,6 +161,8 @@ def _mark_hidden_gems(decisions: list[TradeDecision], symbols: list[str]) -> Non
         return
 
     for decision in decisions:
+        # Hidden gems are intentionally scoped to auto-universe discoveries:
+        # high-confidence BUYs outside the configured core watchlist.
         hidden = (
             decision.action == "BUY"
             and decision.confidence >= _HIDDEN_GEM_MIN_CONFIDENCE

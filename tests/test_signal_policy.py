@@ -6,6 +6,7 @@ from unittest.mock import patch
 from aistock.core.config import settings
 from aistock.core.types import SignalSnapshot, TradeDecision
 from aistock.runtime.pipeline import (
+    _mark_hidden_gems,
     _apply_buy_quality_guard,
     _collect_debug_issues,
     _expected_buy_edge,
@@ -167,6 +168,25 @@ class SignalPolicyTests(unittest.TestCase):
         self.assertEqual(guarded.action, "HOLD")
         self.assertEqual(guarded.quantity, 0.0)
         self.assertIn("negative expectancy", guarded.reason)
+
+    def test_hidden_gems_include_high_confidence_non_core_buy(self) -> None:
+        decisions = [
+            TradeDecision(
+                symbol="SOFI",
+                action="BUY",
+                confidence=0.7,
+                quantity=1,
+                reason="high-confidence setup",
+                signals=[SignalSnapshot(family="ai", action="BUY", confidence=0.7, details="")],
+            )
+        ]
+        with (
+            patch.object(settings, "universe_mode", "auto"),
+            patch.object(settings, "universe", "AAPL,MSFT"),
+        ):
+            _mark_hidden_gems(decisions, symbols=["SOFI"])
+
+        self.assertTrue(decisions[0].is_hidden_gem)
 
 
 if __name__ == "__main__":
