@@ -67,6 +67,8 @@ class HackclubSearchNewsProvider(NewsProvider):
         if settings.search_hackclub_api_key:
             headers["Authorization"] = f"Bearer {settings.search_hackclub_api_key}"
 
+        now = datetime.now(tz=timezone.utc)
+        one_day_ago = now - timedelta(days=1)
         for symbol in symbols:
             query = f"{symbol} stock news"
             debug_item: dict[str, Any] = {
@@ -127,9 +129,7 @@ class HackclubSearchNewsProvider(NewsProvider):
                 self.last_debug.append(debug_item)
                 continue
 
-            now = datetime.now(timezone.utc)
-            one_day_ago = now - timedelta(days=1)
-            appended = 0
+            included_items_count = 0
             for obj in results[:per_symbol]:
                 if not isinstance(obj, dict):
                     continue
@@ -149,8 +149,8 @@ class HackclubSearchNewsProvider(NewsProvider):
                         published_at=published_at,
                     )
                 )
-                appended += 1
+                included_items_count += 1
 
-            debug_item["result_count"] = appended
+            debug_item["result_count"] = included_items_count
             self.last_debug.append(debug_item)
         return items

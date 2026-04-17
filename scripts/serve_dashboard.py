@@ -15,6 +15,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
         super().__init__(*args, directory=str(dashboard_dir), **kwargs)
 
     def do_GET(self) -> None:  # noqa: N802
+        """Override parent GET handling to serve API routes before static files."""
         if self.path.rstrip("/") == "/api/live-prices":
             self._serve_live_prices()
             return

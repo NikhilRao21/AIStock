@@ -394,7 +394,7 @@ def _build_signal_performance(history: list[dict], latest_prices: dict[str, floa
                                 m["trades"] += 1
                                 m["wins"] += 1 if method_outcome > 0 else 0
                                 m["return_sum"] += method_outcome
-                                m["confidence_sum"] += abs(method_score)
+                                m["confidence_sum"] += float(signal.get("confidence", 0.0) or 0.0)
 
     families: dict[str, dict[str, Any]] = {}
     underperformers: list[dict[str, Any]] = []
@@ -632,8 +632,8 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
         .action-buy {{ color:var(--ok); font-weight:700; }}
         .action-sell {{ color:var(--bad); font-weight:700; }}
         .action-hold {{ color:var(--muted); font-weight:700; }}
-         .small {{ font-size:12px; color:var(--muted); }}
-         #equity-chart {{ width: 100%; background: rgba(255,255,255,0.01); border-radius: 8px; }}
+        .small {{ font-size:12px; color:var(--muted); }}
+        #equity-chart {{ width: 100%; background: rgba(255,255,255,0.01); border-radius: 8px; }}
   </style>
 </head>
 <body>
