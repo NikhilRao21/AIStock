@@ -48,6 +48,17 @@ def resolve_symbols(
             cursor = 0
 
     batch_size = max(1, settings.auto_universe_batch_size)
+    if len(symbols) < batch_size:
+        # Keep scans broad even if cached auto-universe currently has too few names.
+        # Top up from configured universe and fallbacks to avoid tiny cycle scans.
+        extras: list[str] = []
+        for candidate in settings.universe_symbols() + _AUTO_FALLBACK_SYMBOLS:
+            if candidate not in symbols and candidate not in extras:
+                extras.append(candidate)
+            if len(symbols) + len(extras) >= batch_size:
+                break
+        if extras:
+            symbols = symbols + extras
     # Probe multiple candidate windows per cycle so a weak/invalid first batch
     # does not immediately force a fallback to the fixed universe.
     max_candidates = min(len(symbols), batch_size * 5)

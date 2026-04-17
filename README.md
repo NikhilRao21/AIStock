@@ -110,6 +110,11 @@ python scripts/serve_dashboard.py --dir data --port 8080
 
 Then open `http://localhost:8080/dashboard.html`.
 
+The dashboard now:
+- auto-refreshes every 60 seconds
+- polls `/api/live-prices` every minute to update displayed position prices/equity between trading cycles
+- includes a portfolio-equity-over-time graph
+
 ## Universe Modes
 
 - `UNIVERSE_MODE=fixed`: uses symbols in `UNIVERSE`

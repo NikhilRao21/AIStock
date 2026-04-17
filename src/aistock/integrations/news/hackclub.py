@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import requests
@@ -38,6 +38,25 @@ class HackclubSearchNewsProvider(NewsProvider):
     def _url(self) -> str:
         return f"{self._base_url.rstrip('/')}/{self._endpoint.lstrip('/')}"
 
+    def _parse_published_at(self, row: dict[str, Any], fallback: datetime) -> datetime:
+        for key in ("published_at", "publishedAt", "published", "pubDate", "date", "datetime", "time"):
+            value = row.get(key)
+            if value is None:
+                continue
+            try:
+                if isinstance(value, (int, float)):
+                    return datetime.fromtimestamp(float(value), tz=timezone.utc)
+                text = str(value).strip()
+                if not text:
+                    continue
+                if text.endswith("Z"):
+                    text = text[:-1] + "+00:00"
+                parsed = datetime.fromisoformat(text)
+                return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
+            except (TypeError, ValueError, OSError):
+                continue
+        return fallback
+
     def fetch_news(self, symbols: list[str], per_symbol: int = 5) -> list[NewsItem]:
         self.last_debug = []
         items: list[NewsItem] = []
@@ -48,6 +67,8 @@ class HackclubSearchNewsProvider(NewsProvider):
         if settings.search_hackclub_api_key:
             headers["Authorization"] = f"Bearer {settings.search_hackclub_api_key}"
 
+        now = datetime.now(tz=timezone.utc)
+        one_day_ago = now - timedelta(days=1)
         for symbol in symbols:
             query = f"{symbol} stock news"
             debug_item: dict[str, Any] = {
@@ -62,7 +83,7 @@ class HackclubSearchNewsProvider(NewsProvider):
             try:
                 resp = self._session.get(
                     self._url(),
-                    params={"q": query, "limit": per_symbol},
+                    params={"q": query, "limit": per_symbol, "days": 1},
                     headers=headers,
                     timeout=self._timeout,
                 )
@@ -108,9 +129,13 @@ class HackclubSearchNewsProvider(NewsProvider):
                 self.last_debug.append(debug_item)
                 continue
 
-            now = datetime.utcnow()
+            included_items_count = 0
             for obj in results[:per_symbol]:
                 if not isinstance(obj, dict):
+                    continue
+                published_at = self._parse_published_at(obj, fallback=now)
+                # Restrict Hack Club news ingestion to the latest 1 day per symbol.
+                if published_at < one_day_ago:
                     continue
                 headline = str(obj.get("title") or obj.get("headline") or f"News for {symbol}")
                 source = str(obj.get("source") or obj.get("domain") or "hackclub-search")
@@ -121,10 +146,11 @@ class HackclubSearchNewsProvider(NewsProvider):
                         headline=headline,
                         source=source,
                         summary=str(summary) if summary else None,
-                        published_at=now,
+                        published_at=published_at,
                     )
                 )
+                included_items_count += 1
 
-            debug_item["result_count"] = len(results[:per_symbol])
+            debug_item["result_count"] = included_items_count
             self.last_debug.append(debug_item)
         return items
