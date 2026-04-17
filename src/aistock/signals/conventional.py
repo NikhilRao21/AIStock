@@ -95,6 +95,8 @@ def conventional_signal(symbol: str, closes: list[float]) -> ConventionalSignal:
     ema12 = _ema(closes, 12)
     ema26 = _ema(closes, 26)
     macd_line = ema12 - ema26
+    # Scale MACD relative to price level so it can be blended with other
+    # normalized method scores in the same [-1, 1] range.
     macd_scale = abs(ma20) * 0.01 if ma20 else max(1e-6, abs(last) * 0.01)
     scores["macd"] = _clip01(macd_line / macd_scale) if macd_scale > 0 else 0.0
 

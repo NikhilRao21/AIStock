@@ -106,6 +106,8 @@ class RSSNewsProvider(NewsProvider):
     def _symbol_mentioned(self, symbol: str, text: str) -> bool:
         if not text:
             return False
+        # Require ticker boundaries so short tickers (e.g. MA) do not match
+        # inside ordinary words. Accept both AAPL and $AAPL forms.
         pattern = rf"(?<![A-Za-z0-9])(?:\$)?{re.escape(symbol)}(?![A-Za-z0-9])"
         return re.search(pattern, text, flags=re.IGNORECASE) is not None
 

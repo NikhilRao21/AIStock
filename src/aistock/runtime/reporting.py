@@ -476,6 +476,8 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
         f"<tr><td>{escape(str(item['family']))}</td><td>{item['trades']}</td><td>{item['win_rate']}</td><td>{item['avg_return']}</td></tr>"
         for item in latest.get("signal_performance", {}).get("underperformers", [])
     )
+    # Flatten family->methods metrics so the dashboard can stratify
+    # conventional method performance in a dedicated table.
     signal_method_rows = ""
     for family, summary in latest.get("signal_performance", {}).get("families", {}).items():
         methods = summary.get("methods", {}) if isinstance(summary, dict) else {}

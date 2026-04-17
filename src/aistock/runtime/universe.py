@@ -137,6 +137,8 @@ def _fetch_us_listed_symbols() -> list[str]:
     symbols: list[str] = []
     errors: list[Exception] = []
 
+    # Try primary + fallback sources in order so auto-universe can still build
+    # a broad symbol list when one upstream feed is unavailable.
     for source_url in (_NASDAQ_LIST_URL, _GITHUB_TICKERS_URL):
         try:
             resp = requests.get(source_url, timeout=20)
@@ -155,6 +157,7 @@ def _fetch_us_listed_symbols() -> list[str]:
 
 
 def _parse_symbol_source_payload(payload: str) -> list[str]:
+    """Parse either nasdaqtraded.txt rows or plain one-ticker-per-line payloads."""
     symbols: list[str] = []
     lines = payload.splitlines()
     if not lines:

@@ -161,6 +161,8 @@ def _mark_hidden_gems(decisions: list[TradeDecision], symbols: list[str]) -> Non
         return
 
     for decision in decisions:
+        # Hidden gems are intentionally scoped to auto-universe discoveries:
+        # high-confidence BUYs outside the configured core watchlist.
         hidden = (
             decision.action == "BUY"
             and decision.confidence >= _HIDDEN_GEM_MIN_CONFIDENCE
