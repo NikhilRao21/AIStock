@@ -106,7 +106,7 @@ class RSSNewsProvider(NewsProvider):
     def _symbol_mentioned(self, symbol: str, text: str) -> bool:
         if not text:
             return False
-        pattern = rf"(?<![A-Z0-9])(?:\$)?{re.escape(symbol)}(?![A-Z0-9])"
+        pattern = rf"(?<![A-Za-z0-9])(?:\$)?{re.escape(symbol)}(?![A-Za-z0-9])"
         return re.search(pattern, text, flags=re.IGNORECASE) is not None
 
     def fetch_news(self, symbols: list[str], per_symbol: int = 5) -> list[NewsItem]:
