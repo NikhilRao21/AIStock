@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 import json
+import re
 import time as _time
 from pathlib import Path
 from typing import Any, Dict, List
@@ -102,6 +103,14 @@ class RSSNewsProvider(NewsProvider):
                     break
         return datetime.utcnow()
 
+    def _symbol_mentioned(self, symbol: str, text: str) -> bool:
+        if not text:
+            return False
+        # Require ticker boundaries so short tickers (e.g. MA) do not match
+        # inside ordinary words. Accept both AAPL and $AAPL forms.
+        pattern = rf"(?<![A-Za-z0-9])(?:\$)?{re.escape(symbol)}(?![A-Za-z0-9])"
+        return re.search(pattern, text, flags=re.IGNORECASE) is not None
+
     def fetch_news(self, symbols: list[str], per_symbol: int = 5) -> list[NewsItem]:
         self.last_debug = []
         items: list[NewsItem] = []
@@ -183,9 +192,7 @@ class RSSNewsProvider(NewsProvider):
                 for sym in symbols_up:
                     if per_symbol_counts.get(sym, 0) >= per_symbol:
                         continue
-                    hay_title = title.upper()
-                    hay_summary = summary.upper()
-                    if sym in hay_title or f"${sym}" in hay_title or sym in hay_summary or f"${sym}" in hay_summary:
+                    if self._symbol_mentioned(sym, title) or self._symbol_mentioned(sym, summary):
                         items.append(
                             NewsItem(
                                 symbol=sym,

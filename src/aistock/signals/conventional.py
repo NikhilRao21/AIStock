@@ -36,6 +36,16 @@ def _clip01(x: float) -> float:
     return x
 
 
+def _ema(closes: list[float], period: int) -> float:
+    if not closes:
+        return 0.0
+    alpha = 2.0 / (period + 1.0)
+    value = closes[0]
+    for close in closes[1:]:
+        value = (alpha * close) + ((1.0 - alpha) * value)
+    return value
+
+
 def conventional_signal(symbol: str, closes: list[float]) -> ConventionalSignal:
     # require at least 21 closes like before
     if len(closes) < 21:
@@ -82,13 +92,30 @@ def conventional_signal(symbol: str, closes: list[float]) -> ConventionalSignal:
     else:
         scores["bollinger"] = 0.0
 
+    ema12 = _ema(closes, 12)
+    ema26 = _ema(closes, 26)
+    macd_line = ema12 - ema26
+    # Scale MACD relative to price level so it can be blended with other
+    # normalized method scores in the same [-1, 1] range.
+    macd_scale = abs(ma20) * 0.01 if ma20 else max(1e-6, abs(last) * 0.01)
+    scores["macd"] = _clip01(macd_line / macd_scale) if macd_scale > 0 else 0.0
+
+    lookback_20 = closes[-20:]
+    low_20 = min(lookback_20)
+    high_20 = max(lookback_20)
+    range_20 = high_20 - low_20
+    breakout_20 = 0.0 if range_20 <= 0 else (((last - low_20) / range_20) * 2.0) - 1.0
+    scores["breakout_20"] = _clip01(breakout_20)
+
     # weights
     weights = {
-        "momentum_5": 0.22,
-        "momentum_20": 0.18,
-        "ma_crossover": 0.2,
-        "rsi": 0.2,
-        "bollinger": 0.2,
+        "momentum_5": 0.18,
+        "momentum_20": 0.16,
+        "ma_crossover": 0.16,
+        "rsi": 0.16,
+        "bollinger": 0.12,
+        "macd": 0.12,
+        "breakout_20": 0.10,
     }
     total_weight = sum(weights.values())
     combined = 0.0
@@ -113,6 +140,10 @@ def conventional_signal(symbol: str, closes: list[float]) -> ConventionalSignal:
         "ma_diff": ma_diff,
         "rsi14": rsi14,
         "bollinger_z": band_z,
+        "ema12": ema12,
+        "ema26": ema26,
+        "macd_line": macd_line,
+        "breakout_20": breakout_20,
         "per_method_scores": scores,
     }
 

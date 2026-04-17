@@ -1,13 +1,30 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
+from aistock.core.config import settings
 from aistock.core.types import SignalSnapshot, TradeDecision
-from aistock.runtime.pipeline import _collect_debug_issues, _signal_weights_from_history
+from aistock.runtime.pipeline import (
+    _mark_hidden_gems,
+    _apply_buy_quality_guard,
+    _collect_debug_issues,
+    _expected_buy_edge,
+    _signal_weights_from_history,
+)
 from aistock.runtime.reporting import _build_signal_performance
 
 
 class SignalPolicyTests(unittest.TestCase):
+    def test_expected_buy_edge_accounts_for_reward_risk_and_fees(self) -> None:
+        edge = _expected_buy_edge(
+            confidence=0.6,
+            take_profit_pct=0.06,
+            stop_loss_pct=0.03,
+            fee_bps=5.0,
+        )
+        self.assertGreater(edge, 0.0)
+
     def test_signal_performance_rollup_marks_underperformers(self) -> None:
         history = [
             {
@@ -130,6 +147,46 @@ class SignalPolicyTests(unittest.TestCase):
 
         self.assertIn("No fills were executed (informational: no executable orders)", issues)
         self.assertIn("All sized quantities were 0 (non_buy_action=1)", issues)
+
+    def test_buy_quality_guard_rejects_negative_expectancy_buy(self) -> None:
+        with (
+            patch.object(settings, "stop_loss_pct", 0.08),
+            patch.object(settings, "take_profit_pct", 0.02),
+        ):
+            guarded = _apply_buy_quality_guard(
+                TradeDecision(
+                    symbol="AAPL",
+                    action="BUY",
+                    confidence=0.55,
+                    quantity=1,
+                    reason="BUY signal",
+                    signals=[SignalSnapshot(family="ai", action="BUY", confidence=0.55, details="")],
+                ),
+                fee_bps=5.0,
+            )
+
+        self.assertEqual(guarded.action, "HOLD")
+        self.assertEqual(guarded.quantity, 0.0)
+        self.assertIn("negative expectancy", guarded.reason)
+
+    def test_hidden_gems_include_high_confidence_non_core_buy(self) -> None:
+        decisions = [
+            TradeDecision(
+                symbol="SOFI",
+                action="BUY",
+                confidence=0.7,
+                quantity=1,
+                reason="high-confidence setup",
+                signals=[SignalSnapshot(family="ai", action="BUY", confidence=0.7, details="")],
+            )
+        ]
+        with (
+            patch.object(settings, "universe_mode", "auto"),
+            patch.object(settings, "universe", "AAPL,MSFT"),
+        ):
+            _mark_hidden_gems(decisions, symbols=["SOFI"])
+
+        self.assertTrue(decisions[0].is_hidden_gem)
 
 
 if __name__ == "__main__":
