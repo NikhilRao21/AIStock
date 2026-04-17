@@ -12,7 +12,7 @@ from aistock.core.tz import format_iso_in_tz, format_human_in_tz
 from aistock.core.config import settings
 
 _SIGNAL_PERFORMANCE_MIN_TRADES = 5
-_SIGNAL_PERFORMANCE_MIN_WIN_RATE = 0.45
+_SIGNAL_PERFORMANCE_MIN_WIN_RATE = 0.5
 
 
 def write_cycle_report(
