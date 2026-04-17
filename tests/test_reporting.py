@@ -106,6 +106,10 @@ class ReportingTests(unittest.TestCase):
             self.assertIn("Closed Positions (Sells)", dashboard)
             self.assertIn("Recent Fills (Buys & Sells)", dashboard)
             self.assertIn("Conventional Method Stratification", dashboard)
+            self.assertIn("Portfolio Value Over Time", dashboard)
+            self.assertIn("id=\"equity-chart\"", dashboard)
+            self.assertIn("/api/live-prices", dashboard)
+            self.assertIn("setInterval(updateLivePrices, 60000)", dashboard)
             self.assertIn("{&quot;error&quot;:&quot;boom&quot;}", dashboard)
 
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -49,6 +49,36 @@ class HackclubProvidersTests(unittest.TestCase):
         self.assertEqual(items[0].headline, "AAPL rises")
         self.assertEqual(items[0].source, "Reuters")
         self.assertTrue(mock_get.call_args[0][0].endswith("/res/v1/news/search"))
+        self.assertEqual(mock_get.call_args.kwargs["params"]["days"], 1)
+
+    def test_news_provider_filters_out_items_older_than_one_day(self) -> None:
+        provider = HackclubSearchNewsProvider()
+        now = datetime.now(timezone.utc)
+        response = MagicMock()
+        response.status_code = 200
+        response.text = "ok"
+        response.json.return_value = {
+            "results": [
+                {
+                    "title": "AAPL fresh item",
+                    "source": "Reuters",
+                    "snippet": "fresh",
+                    "published_at": now.isoformat(),
+                },
+                {
+                    "title": "AAPL stale item",
+                    "source": "Reuters",
+                    "snippet": "stale",
+                    "published_at": (now - timedelta(days=2)).isoformat(),
+                },
+            ]
+        }
+
+        with patch.object(provider._session, "get", return_value=response):
+            items = provider.fetch_news(["AAPL"], per_symbol=5)
+
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].headline, "AAPL fresh item")
 
     def test_ai_provider_uses_chat_completions_and_parses_json_content(self) -> None:
         provider = HackclubAiProvider()
