@@ -107,7 +107,7 @@ class RSSNewsProvider(NewsProvider):
         if not text:
             return False
         pattern = rf"(?<![A-Z0-9])(?:\$)?{re.escape(symbol)}(?![A-Z0-9])"
-        return re.search(pattern, text) is not None
+        return re.search(pattern, text, flags=re.IGNORECASE) is not None
 
     def fetch_news(self, symbols: list[str], per_symbol: int = 5) -> list[NewsItem]:
         self.last_debug = []
@@ -187,12 +187,10 @@ class RSSNewsProvider(NewsProvider):
 
                 # try to match any symbol
                 matched = False
-                hay_title = title.upper()
-                hay_summary = summary.upper()
                 for sym in symbols_up:
                     if per_symbol_counts.get(sym, 0) >= per_symbol:
                         continue
-                    if self._symbol_mentioned(sym, hay_title) or self._symbol_mentioned(sym, hay_summary):
+                    if self._symbol_mentioned(sym, title) or self._symbol_mentioned(sym, summary):
                         items.append(
                             NewsItem(
                                 symbol=sym,
