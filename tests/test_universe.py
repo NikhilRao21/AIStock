@@ -113,6 +113,27 @@ class UniverseTests(unittest.TestCase):
 
         self.assertEqual(out, ["AAPL", "MSFT"])
 
+    def test_auto_mode_tops_up_when_discovered_universe_is_too_small(self) -> None:
+        settings = Settings(
+            universe_mode="auto",
+            universe="AAPL,MSFT",
+            auto_universe_batch_size=3,
+            auto_universe_max_symbols=20,
+            auto_universe_min_price=3,
+            auto_universe_max_price=500,
+        )
+        market = _FakeMarket(prices={"JPM": 200.0, "AAPL": 180.0, "MSFT": 420.0})
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data_dir = Path(tmpdir)
+            with patch("aistock.runtime.universe._load_or_refresh_universe", return_value=["JPM"]):
+                out = resolve_symbols(settings=settings, market=market, data_dir=data_dir)
+
+        self.assertEqual(len(out), 3)
+        self.assertIn("JPM", out)
+        self.assertIn("AAPL", out)
+        self.assertIn("MSFT", out)
+
 
 if __name__ == "__main__":
     unittest.main()

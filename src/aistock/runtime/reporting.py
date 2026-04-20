@@ -352,10 +352,18 @@ def _build_signal_performance(history: list[dict], latest_prices: dict[str, floa
 
             for signal in decision.get("signals", []):
                 family = str(signal.get("family", "unknown"))
+                signal_action = str(signal.get("action", "HOLD")).upper()
+                if signal_action == "HOLD":
+                    continue
+                aligned = (
+                    (signal_action == "BUY" and action == "BUY")
+                    or (signal_action == "SELL" and action == "SELL")
+                )
+                signal_outcome = outcome if aligned else -outcome
                 stats = family_stats[family]
                 stats["trades"] += 1
-                stats["wins"] += 1 if outcome > 0 else 0
-                stats["return_sum"] += outcome
+                stats["wins"] += 1 if signal_outcome > 0 else 0
+                stats["return_sum"] += signal_outcome
                 stats["confidence_sum"] += float(signal.get("confidence", 0.0) or 0.0)
 
                 # If conventional signal supplies per-method details, aggregate per-method stats
@@ -365,14 +373,30 @@ def _build_signal_performance(history: list[dict], latest_prices: dict[str, floa
                         per_method = details.get("per_method_scores")
                         if isinstance(per_method, dict):
                             family_methods = method_stats.setdefault(family, {})
-                            for method_name in per_method.keys():
+                            for method_name, raw_score in per_method.items():
+                                try:
+                                    method_score = float(raw_score or 0.0)
+                                except (TypeError, ValueError):
+                                    continue
+                                if method_score == 0.0:
+                                    continue
+
+                                # Evaluate each method by the direction it implied.
+                                # Methods that opposed the executed fill are
+                                # attributed inverse outcome, which prevents
+                                # identical win rates across all methods.
+                                aligned = (
+                                    (method_score > 0 and action == "BUY")
+                                    or (method_score < 0 and action == "SELL")
+                                )
+                                method_outcome = outcome if aligned else -outcome
                                 m = family_methods.get(method_name)
                                 if m is None:
                                     family_methods[method_name] = {"trades": 0.0, "wins": 0.0, "return_sum": 0.0, "confidence_sum": 0.0}
                                     m = family_methods[method_name]
                                 m["trades"] += 1
-                                m["wins"] += 1 if outcome > 0 else 0
-                                m["return_sum"] += outcome
+                                m["wins"] += 1 if method_outcome > 0 else 0
+                                m["return_sum"] += method_outcome
                                 m["confidence_sum"] += float(signal.get("confidence", 0.0) or 0.0)
 
     families: dict[str, dict[str, Any]] = {}
@@ -457,10 +481,10 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
         (
             f"<tr>"
             f"<td>{escape(str(p['symbol']))}</td>"
-            f"<td>{p['quantity']}</td>"
-            f"<td>${p['avg_cost']}</td>"
-            f"<td>${p.get('current_price','')}</td>"
-            f"<td class=\"{'pnl-positive' if (p.get('unrealized', 0) >= 0) else 'pnl-negative'}\">${p.get('unrealized','')}</td>"
+            f"<td class=\"js-qty\">{p['quantity']}</td>"
+            f"<td class=\"js-avg\">${p['avg_cost']}</td>"
+            f"<td class=\"js-price\" data-symbol=\"{escape(str(p['symbol']))}\">${p.get('current_price','')}</td>"
+            f"<td class=\"js-unrealized {'pnl-positive' if (p.get('unrealized', 0) >= 0) else 'pnl-negative'}\">${p.get('unrealized','')}</td>"
             f"<td class=\"{'pnl-positive' if ((p.get('unrealized_pct') or 0) >= 0) else 'pnl-negative'}\">{(str(p.get('unrealized_pct','')) + '%') if p.get('unrealized_pct') is not None else ''}</td>"
             f"</tr>"
         )
@@ -534,6 +558,9 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
         f"<tr><td>{escape(str(r.get('timestamp_human', r.get('timestamp_et', r.get('timestamp', '')))))}</td><td>{r.get('equity', '')}</td><td>{r.get('equity_delta', '')}</td><td>{r.get('fill_count', '')}</td><td>{len(r.get('hidden_gem_candidates', []))}</td><td>{'fail' if not r.get('news_status', {}).get('ok', True) else 'ok'}</td></tr>"
         for r in reversed(history[-30:])
     )
+    equity_history = [float(r.get("equity", 0.0) or 0.0) for r in history[-120:] if r.get("equity") is not None]
+    if not equity_history and latest.get("equity") is not None:
+        equity_history = [float(latest.get("equity", 0.0) or 0.0)]
 
     issue_rows = "".join(f"<li>{escape(str(issue))}</li>" for issue in debug_issues)
 
@@ -590,6 +617,7 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
 <head>
   <meta charset=\"utf-8\" />
   <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+  <meta http-equiv=\"refresh\" content=\"60\" />
   <title>AIStock Dashboard</title>
   <style>
         :root {{ --bg:#071029; --card:#071025; --text:#dfeefe; --muted:#9ca3af; --ok:#22c55e; --bad:#ef4444; --accent:#60a5fa; --glass: rgba(255,255,255,0.03); }}
@@ -615,6 +643,7 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
         .action-sell {{ color:var(--bad); font-weight:700; }}
         .action-hold {{ color:var(--muted); font-weight:700; }}
         .small {{ font-size:12px; color:var(--muted); }}
+        #equity-chart {{ width: 100%; background: rgba(255,255,255,0.01); border-radius: 8px; }}
   </style>
 </head>
 <body>
@@ -623,7 +652,7 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
     <p>Updated: {escape(str(latest.get('timestamp_human', latest.get('timestamp_et', latest.get('timestamp', '')))))}</p>
 
     <div class=\"grid\">
-      <div class=\"card\"><div class=\"label\">Portfolio Equity</div><div class=\"value\">${latest.get('equity', '')}</div></div>
+      <div class=\"card\"><div class=\"label\">Portfolio Equity</div><div class=\"value\" id=\"portfolio-equity\">${latest.get('equity', '')}</div></div>
       <div class=\"card\"><div class=\"label\">Cash</div><div class=\"value\">${latest.get('cash', '')}</div></div>
     <div class=\"card\"><div class=\"label\">Equity Change</div><div class=\"value\">{latest.get('equity_delta', 'N/A')}</div></div>
     <div class=\"card\"><div class=\"label\">Net Profit</div><div class=\"value\">${latest.get('net_profit', '')} {('('+str(latest.get('net_profit_pct'))+'%') if latest.get('net_profit_pct') is not None else ''}</div></div>
@@ -648,6 +677,11 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
 
     <h2>Symbols Scanned This Cycle</h2>
     <div class=\"card\"><div class=\"symbols-grid\">{scanned_grid or '<div class=\"small\">No symbols scanned</div>'}</div></div>
+
+    <h2>Portfolio Value Over Time</h2>
+    <div class=\"card\">
+      <canvas id=\"equity-chart\" height=\"100\"></canvas>
+    </div>
 
     <h2>Current Positions</h2>
     <div class=\"card\">
@@ -791,6 +825,72 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
       </table>
     </div>
   </div>
+  <script>
+    const equitySeries = {json.dumps(equity_history)};
+
+    function drawEquityChart() {{
+      const canvas = document.getElementById('equity-chart');
+      if (!canvas || !equitySeries.length) return;
+      const ctx = canvas.getContext('2d');
+      const width = canvas.width = canvas.clientWidth * (window.devicePixelRatio || 1);
+      const height = canvas.height = 260 * (window.devicePixelRatio || 1);
+      ctx.clearRect(0, 0, width, height);
+      const min = Math.min(...equitySeries);
+      const max = Math.max(...equitySeries);
+      const span = Math.max(1e-6, max - min);
+      ctx.lineWidth = 2 * (window.devicePixelRatio || 1);
+      ctx.strokeStyle = '#60a5fa';
+      ctx.beginPath();
+      equitySeries.forEach((value, idx) => {{
+        const x = (idx / Math.max(1, equitySeries.length - 1)) * (width - 24) + 12;
+        const y = height - (((value - min) / span) * (height - 24) + 12);
+        if (idx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }});
+      ctx.stroke();
+    }}
+
+    function updateLivePrices() {{
+      fetch('/api/live-prices')
+        .then((r) => r.ok ? r.json() : Promise.reject(new Error('live price request failed')))
+        .then((payload) => {{
+          const prices = payload.prices || {{}};
+          let liveEquity = Number(payload.cash || 0);
+          document.querySelectorAll('.js-price').forEach((cell) => {{
+            const symbol = cell.getAttribute('data-symbol');
+            const price = Number(prices[symbol]);
+            if (!Number.isFinite(price) || price <= 0) return;
+            cell.textContent = '$' + price.toFixed(4);
+            const row = cell.closest('tr');
+            const qty = Number((row?.querySelector('.js-qty')?.textContent || '0').replace(/[^0-9.-]/g, ''));
+            const avg = Number((row?.querySelector('.js-avg')?.textContent || '0').replace(/[^0-9.-]/g, ''));
+            const pnlCell = row?.querySelector('.js-unrealized');
+            if (Number.isFinite(qty) && Number.isFinite(avg) && pnlCell) {{
+              const unrealized = (price - avg) * qty;
+              pnlCell.textContent = '$' + unrealized.toFixed(2);
+              pnlCell.classList.toggle('pnl-positive', unrealized >= 0);
+              pnlCell.classList.toggle('pnl-negative', unrealized < 0);
+              liveEquity += price * qty;
+            }}
+          }});
+          const equityNode = document.getElementById('portfolio-equity');
+          if (equityNode) {{
+            equityNode.textContent = '$' + liveEquity.toFixed(2);
+          }}
+          if (Number.isFinite(liveEquity) && liveEquity > 0) {{
+            equitySeries.push(liveEquity);
+            if (equitySeries.length > 240) equitySeries.shift();
+            drawEquityChart();
+          }}
+        }})
+        .catch(() => {{}});
+    }}
+
+    drawEquityChart();
+    updateLivePrices();
+    setInterval(updateLivePrices, 60000);
+    window.addEventListener('resize', drawEquityChart);
+  </script>
 </body>
 </html>
 """

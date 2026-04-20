@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from aistock.core.config import settings
 from aistock.core.types import SignalSnapshot, TradeDecision
+from aistock.risk.engine import size_trade
 from aistock.runtime.pipeline import (
     _mark_hidden_gems,
     _apply_buy_quality_guard,
@@ -187,6 +188,84 @@ class SignalPolicyTests(unittest.TestCase):
             _mark_hidden_gems(decisions, symbols=["SOFI"])
 
         self.assertTrue(decisions[0].is_hidden_gem)
+
+    def test_conventional_method_stats_can_diverge_by_method_direction(self) -> None:
+        history = [
+            {
+                "decisions": [
+                    {
+                        "symbol": "AAPL",
+                        "action": "BUY",
+                        "quantity": 1,
+                        "signals": [
+                            {
+                                "family": "conventional",
+                                "action": "BUY",
+                                "confidence": 0.7,
+                                "details": {"per_method_scores": {"momentum_5": 0.8, "rsi": -0.8}},
+                            }
+                        ],
+                    }
+                ],
+                "fills": [{"symbol": "AAPL", "action": "BUY", "quantity": 1, "fill_price": 100.0}],
+            }
+        ]
+
+        performance = _build_signal_performance(history, {"AAPL": 110.0})
+        methods = performance["families"]["conventional"]["methods"]
+        self.assertGreater(methods["momentum_5"]["win_rate"], methods["rsi"]["win_rate"])
+
+    def test_signal_family_stats_respect_signal_direction(self) -> None:
+        history = [
+            {
+                "decisions": [
+                    {
+                        "symbol": "AAPL",
+                        "action": "BUY",
+                        "quantity": 1,
+                        "signals": [
+                            {"family": "ai", "action": "SELL", "confidence": 0.9, "details": ""},
+                            {"family": "conventional", "action": "BUY", "confidence": 0.8, "details": ""},
+                        ],
+                    }
+                ],
+                "fills": [{"symbol": "AAPL", "action": "BUY", "quantity": 1, "fill_price": 100.0}],
+            }
+        ]
+        performance = _build_signal_performance(history, {"AAPL": 110.0})
+        self.assertEqual(performance["families"]["conventional"]["win_rate"], 1.0)
+        self.assertEqual(performance["families"]["ai"]["win_rate"], 0.0)
+
+    def test_size_trade_enforces_fractional_minimum_threshold(self) -> None:
+        tiny_order = size_trade(
+            decision=TradeDecision(
+                symbol="AAPL",
+                action="BUY",
+                confidence=0.8,
+                quantity=0.0,
+                reason="test",
+                signals=[],
+            ),
+            latest_price=2000.0,
+            cash=10.0,
+            max_allocation_per_trade=0.03,
+        )
+        self.assertEqual(tiny_order.quantity, 0.0)
+
+        valid_fractional = size_trade(
+            decision=TradeDecision(
+                symbol="MSFT",
+                action="BUY",
+                confidence=0.8,
+                quantity=0.0,
+                reason="test",
+                signals=[],
+            ),
+            latest_price=1000.0,
+            cash=100.0,
+            max_allocation_per_trade=0.03,
+        )
+        self.assertGreaterEqual(valid_fractional.quantity, 0.001)
 
 
 if __name__ == "__main__":

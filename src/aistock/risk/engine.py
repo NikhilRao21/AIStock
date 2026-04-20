@@ -22,11 +22,14 @@ def size_trade(
         )
 
     budget = cash * max_allocation_per_trade
-    # Allow fractional shares: allocate budget / price and round to reasonable precision
+    # Allow fractional shares, but require minimum buy size of
+    # max($1 notional, 0.001 shares).
     if latest_price <= 0:
         qty = 0.0
     else:
-        qty = round(budget / latest_price, 6)
+        min_quantity = max(1.0 / latest_price, 0.001)
+        sized_quantity = round(budget / latest_price, 6)
+        qty = sized_quantity if sized_quantity >= min_quantity else 0.0
     return TradeDecision(
         symbol=decision.symbol,
         action=decision.action,
