@@ -223,26 +223,29 @@ def write_cycle_report(
     }
 
     reports_path = data_dir / "cycle_reports.jsonl"
-    # Append BUY fills to a persistent purchase log (JSONL)
+    # Append fills (BUY and SELL) to a persistent purchase log (JSONL)
     purchase_log_path = data_dir / "purchase_log.jsonl"
     if fills:
         try:
             with purchase_log_path.open("a", encoding="utf-8") as plf:
                 for f in fills:
                     try:
-                        if str(f.action).upper() == "BUY" and (f.quantity or 0) > 0:
-                            entry = {
-                                "timestamp": f.timestamp.isoformat(),
-                                "timestamp_et": format_iso_in_tz(f.timestamp, settings.display_timezone),
-                                "symbol": f.symbol,
-                                "action": f.action,
-                                "quantity": f.quantity,
-                                "fill_price": round(f.fill_price, 4),
-                                "fee": round(f.fee, 4),
-                                "equity": round(portfolio.equity, 2),
-                                "timestamp_human": format_human_in_tz(f.timestamp, settings.display_timezone),
-                            }
-                            plf.write(json.dumps(entry) + "\n")
+                        side = str(f.action).upper() if f.action is not None else ""
+                        if (f.quantity or 0) <= 0:
+                            continue
+                        entry = {
+                            "timestamp": f.timestamp.isoformat(),
+                            "timestamp_et": format_iso_in_tz(f.timestamp, settings.display_timezone),
+                            "symbol": f.symbol,
+                            "action": f.action,
+                            "side": side,
+                            "quantity": f.quantity,
+                            "fill_price": round(f.fill_price, 4),
+                            "fee": round(f.fee, 4),
+                            "equity": round(portfolio.equity, 2),
+                            "timestamp_human": format_human_in_tz(f.timestamp, settings.display_timezone),
+                        }
+                        plf.write(json.dumps(entry) + "\n")
                     except Exception:
                         # best-effort per-fill
                         continue
@@ -507,7 +510,14 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
     )
 
     purchase_rows = "".join(
-        f"<tr><td>{escape(str(item.get('timestamp_human', item.get('timestamp_et', item.get('timestamp', '')))))}</td><td>{escape(str(item.get('symbol', '')))}</td><td>{item.get('quantity', '')}</td><td>${item.get('fill_price', '')}</td><td>${item.get('fee', '')}</td><td>${item.get('equity', '')}</td></tr>"
+        (
+            f"<tr>"
+            f"<td>{escape(str(item.get('timestamp_human', item.get('timestamp_et', item.get('timestamp', '')))))}</td>"
+            f"<td>{escape(str(item.get('symbol', '')))}</td>"
+            f"<td class=\"action-{escape(str(item.get('action', '')).lower())}\">{escape(str(item.get('action', '')))}</td>"
+            f"<td>{item.get('quantity', '')}</td><td>${item.get('fill_price', '')}</td><td>${item.get('fee', '')}</td><td>${item.get('equity', '')}</td>"
+            f"</tr>"
+        )
         for item in latest.get('purchase_log', [])
     )
     fills_rows = "".join(
@@ -690,13 +700,13 @@ def _write_dashboard_html(data_dir: Path, latest: dict, history: list[dict]) -> 
             </details>
         </div>
 
-    <h2>Purchase Log</h2>
-    <div class=\"card\">
-      <table>
-        <thead><tr><th>Time</th><th>Symbol</th><th>Qty</th><th>Price</th><th>Fee</th><th>Equity</th></tr></thead>
-        <tbody>{purchase_rows or '<tr><td colspan="6">No purchases logged</td></tr>'}</tbody>
-      </table>
-    </div>
+        <h2>Purchase Log</h2>
+        <div class=\"card\">
+            <table>
+                <thead><tr><th>Time</th><th>Symbol</th><th>Action</th><th>Qty</th><th>Price</th><th>Fee</th><th>Equity</th></tr></thead>
+                <tbody>{purchase_rows or '<tr><td colspan="7">No purchases logged</td></tr>'}</tbody>
+            </table>
+        </div>
 
     <h2>Recent Fills (Buys & Sells)</h2>
     <div class=\"card\">

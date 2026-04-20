@@ -108,6 +108,41 @@ class ReportingTests(unittest.TestCase):
             self.assertIn("Conventional Method Stratification", dashboard)
             self.assertIn("{&quot;error&quot;:&quot;boom&quot;}", dashboard)
 
+    def test_sells_are_logged_and_shown_in_dashboard(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data_dir = Path(tmpdir)
+            fills = [
+                Fill(symbol="AAPL", action="BUY", quantity=1, fill_price=10.0, fee=0.1),
+                Fill(symbol="AAPL", action="SELL", quantity=1, fill_price=12.0, fee=0.1),
+            ]
+            report = write_cycle_report(
+                data_dir=data_dir,
+                symbols_scanned=["AAPL"],
+                decisions=[],
+                fills=fills,
+                portfolio=PortfolioSnapshot(cash=100.0, equity=112.0, positions=[]),
+                ai_output=[],
+                ai_raw_output=[],
+                market_prices={"AAPL": 12.0},
+                previous_equity=100.0,
+                previous_positions=[],
+                news_status={"ok": True},
+                history_limit=5,
+            )
+
+            purchase_log_path = data_dir / "purchase_log.jsonl"
+            self.assertTrue(purchase_log_path.exists())
+            entries = [json.loads(l) for l in purchase_log_path.read_text(encoding="utf-8").splitlines() if l.strip()]
+            # Expect at least one SELL entry recorded
+            self.assertTrue(any(e.get("side") == "SELL" for e in entries))
+
+            latest = json.loads((data_dir / "latest_cycle.json").read_text(encoding="utf-8"))
+            self.assertIn("purchase_log", latest)
+            self.assertTrue(any(e.get("side") == "SELL" for e in latest.get("purchase_log", [])))
+
+            dashboard = (data_dir / "dashboard.html").read_text(encoding="utf-8")
+            # dashboard should include a styled action cell for sell
+            self.assertIn("action-sell", dashboard)
 
 if __name__ == "__main__":
     unittest.main()
